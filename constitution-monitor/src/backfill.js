@@ -139,11 +139,61 @@ function extractContent(html) {
   const mainContent = $('article').length ? $('article') :
                       ($('main').length ? $('main') : $('body'));
 
-  // Get all text including from collapsed/expandable sections
-  // (they're in the DOM, just hidden via CSS)
-  let text = mainContent.text();
+  // Block-level elements that should have newlines before/after
+  const blockElements = new Set([
+    'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'li', 'ul', 'ol', 'blockquote', 'section', 'article',
+    'tr', 'td', 'th', 'br', 'hr'
+  ]);
 
-  // Clean up whitespace
+  // Extract text with proper spacing between block elements
+  const textParts = [];
+
+  function extractFromNode(node) {
+    if (node.type === 'text') {
+      const text = node.data.trim();
+      if (text) {
+        textParts.push(text);
+      }
+    } else if (node.type === 'tag') {
+      const tagName = node.name.toLowerCase();
+      const isBlock = blockElements.has(tagName);
+
+      // Add newline marker before block elements
+      if (isBlock && textParts.length > 0) {
+        textParts.push('\n');
+      }
+
+      // Process children
+      if (node.children) {
+        for (const child of node.children) {
+          extractFromNode(child);
+        }
+      }
+
+      // Add newline marker after block elements
+      if (isBlock) {
+        textParts.push('\n');
+      }
+    }
+  }
+
+  // Process all nodes in main content
+  mainContent.contents().each(function() {
+    extractFromNode(this);
+  });
+
+  // Join and normalize whitespace
+  let text = textParts.join(' ');
+
+  // Normalize multiple spaces to single space
+  text = text.replace(/[ \t]+/g, ' ');
+
+  // Normalize multiple newlines to double newline (paragraph break)
+  text = text.replace(/\n\s*\n/g, '\n\n');
+  text = text.replace(/\n{3,}/g, '\n\n');
+
+  // Split into lines and clean up
   const lines = text.split('\n')
     .map(line => line.trim())
     .filter(line => line.length > 0)
@@ -151,9 +201,11 @@ function extractContent(html) {
     .filter(line => !line.includes('web.archive.org'))
     .filter(line => !line.includes('Wayback Machine'))
     .filter(line => !line.match(/^\d+ captures?$/))
-    .filter(line => !line.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d+, \d{4}$/));
+    .filter(line => !line.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d+, \d{4}$/))
+    // Filter out common navigation/UI text
+    .filter(line => !line.match(/^(Skip to|Jump to|Menu|Search|Close)$/i));
 
-  return lines.join('\n\n');
+  return lines.join('\n');
 }
 
 /**
