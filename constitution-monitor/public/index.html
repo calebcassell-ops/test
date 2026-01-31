@@ -199,6 +199,59 @@
       text-decoration: underline;
     }
 
+    .changelog details {
+      margin: 1rem 0;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .changelog summary {
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      font-weight: 500;
+      color: var(--text-primary);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .changelog summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .changelog summary::before {
+      content: '▶';
+      font-size: 0.7em;
+      transition: transform 0.2s;
+      color: var(--accent);
+    }
+
+    .changelog details[open] summary::before {
+      transform: rotate(90deg);
+    }
+
+    .changelog details[open] summary {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .changelog details > :not(summary) {
+      padding: 0 1rem;
+    }
+
+    .changelog details blockquote {
+      margin: 0.75rem 0;
+    }
+
+    .changelog details blockquote:first-of-type {
+      margin-top: 1rem;
+    }
+
+    .changelog details blockquote:last-child {
+      margin-bottom: 1rem;
+    }
+
     .error {
       background: rgba(248, 113, 113, 0.1);
       border: 1px solid var(--red);
@@ -278,21 +331,27 @@
   </div>
 
   <script>
+    function formatDateTime(isoString) {
+      if (!isoString) return 'Never';
+      const date = new Date(isoString);
+      return date.toLocaleString();
+    }
+
     async function loadChangelog() {
       const loadingEl = document.getElementById('loading');
       const changelogEl = document.getElementById('changelog');
       const errorEl = document.getElementById('error');
 
       try {
-        const [changelogRes, versionsRes] = await Promise.all([
+        const [changelogRes, statusRes] = await Promise.all([
           fetch('/api/changelog'),
-          fetch('/api/versions')
+          fetch('/api/status')
         ]);
 
         if (!changelogRes.ok) throw new Error('Failed to load changelog');
 
         const { changelog } = await changelogRes.json();
-        const { versions } = await versionsRes.json();
+        const { lastChecked, versionCount } = await statusRes.json();
 
         // Render markdown
         changelogEl.innerHTML = marked.parse(changelog);
@@ -301,14 +360,10 @@
 
         // Update status bar
         document.getElementById('version-count').innerHTML =
-          `<span>${versions.length} version${versions.length !== 1 ? 's' : ''} tracked</span>`;
+          `<span>${versionCount} version${versionCount !== 1 ? 's' : ''} tracked</span>`;
 
-        if (versions.length > 0) {
-          const lastVersion = versions[versions.length - 1];
-          const lastDate = new Date(lastVersion.timestamp.replace(' UTC', 'Z'));
-          document.getElementById('last-check').innerHTML =
-            `<span>Last snapshot: ${lastDate.toLocaleDateString()}</span>`;
-        }
+        document.getElementById('last-check').innerHTML =
+          `<span>Last checked: ${formatDateTime(lastChecked)}</span>`;
 
       } catch (err) {
         console.error('Error loading changelog:', err);

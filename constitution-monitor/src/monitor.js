@@ -134,6 +134,23 @@ async function saveMetadata(metadata) {
 }
 
 /**
+ * Update the last checked timestamp
+ */
+async function updateLastChecked() {
+  const metadata = await loadMetadata();
+  metadata.lastChecked = new Date().toISOString();
+  await saveMetadata(metadata);
+}
+
+/**
+ * Get the last checked timestamp
+ */
+export async function getLastChecked() {
+  const metadata = await loadMetadata();
+  return metadata.lastChecked || null;
+}
+
+/**
  * Get the latest stored version
  */
 export async function getLatestVersion() {
@@ -174,20 +191,25 @@ export function generateDiff(oldContent, newContent) {
 }
 
 /**
- * Generate summary statistics of changes
+ * Generate summary statistics of changes (preserving document order)
  */
 export function generateDiffSummary(oldContent, newContent) {
-  const oldLines = new Set(oldContent.split('\n').filter(l => l.trim()));
-  const newLines = new Set(newContent.split('\n').filter(l => l.trim()));
+  const oldLines = oldContent.split('\n').filter(l => l.trim());
+  const newLines = newContent.split('\n').filter(l => l.trim());
 
-  const added = [...newLines].filter(l => !oldLines.has(l));
-  const removed = [...oldLines].filter(l => !newLines.has(l));
+  const oldSet = new Set(oldLines);
+  const newSet = new Set(newLines);
+
+  // Additions in the order they appear in the new document
+  const added = newLines.filter(l => !oldSet.has(l));
+  // Removals in the order they appeared in the old document
+  const removed = oldLines.filter(l => !newSet.has(l));
 
   return {
     linesAdded: added.length,
     linesRemoved: removed.length,
-    addedPreview: added.slice(0, 5),
-    removedPreview: removed.slice(0, 5)
+    added,    // Full list in document order
+    removed   // Full list in document order
   };
 }
 
@@ -246,7 +268,7 @@ async function updateChangelog(timestamp, versionHash, diffSummary, llmSummary) 
   let entry = `
 ## ${timestamp}
 
-**Version:** \`${versionHash}\`
+**Version:** [\`${versionHash}\`](https://www.anthropic.com/constitution)
 
 `;
 
@@ -254,32 +276,26 @@ async function updateChangelog(timestamp, versionHash, diffSummary, llmSummary) 
     entry += `### Summary\n${llmSummary}\n\n`;
   }
 
-  entry += `### Statistics
-- Lines added: ${diffSummary.linesAdded}
-- Lines removed: ${diffSummary.linesRemoved}
+  entry += `**Changes:** +${diffSummary.linesAdded} additions, -${diffSummary.linesRemoved} removals\n\n`;
 
-`;
-
-  if (diffSummary.addedPreview.length > 0) {
-    entry += '### Sample of additions\n';
-    for (const line of diffSummary.addedPreview.slice(0, 3)) {
+  if (diffSummary.added.length > 0) {
+    entry += '<details>\n<summary>Additions</summary>\n\n';
+    for (const line of diffSummary.added) {
       if (line.trim()) {
-        const preview = line.length > 200 ? line.slice(0, 200) + '...' : line;
-        entry += `> ${preview}\n`;
+        entry += `> ${line}\n\n`;
       }
     }
-    entry += '\n';
+    entry += '</details>\n\n';
   }
 
-  if (diffSummary.removedPreview.length > 0) {
-    entry += '### Sample of removals\n';
-    for (const line of diffSummary.removedPreview.slice(0, 3)) {
+  if (diffSummary.removed.length > 0) {
+    entry += '<details>\n<summary>Removals</summary>\n\n';
+    for (const line of diffSummary.removed) {
       if (line.trim()) {
-        const preview = line.length > 200 ? line.slice(0, 200) + '...' : line;
-        entry += `> ~~${preview}~~\n`;
+        entry += `> ~~${line}~~\n\n`;
       }
     }
-    entry += '\n';
+    entry += '</details>\n\n';
   }
 
   entry += '---\n';
@@ -352,6 +368,9 @@ export async function runMonitor() {
   console.log('='.repeat(60));
 
   await fs.mkdir(VERSIONS_DIR, { recursive: true });
+
+  // Update last checked timestamp
+  await updateLastChecked();
 
   // Fetch current content
   const currentContent = await fetchConstitution();

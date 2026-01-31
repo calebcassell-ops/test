@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { runMonitor, getChangelog, getVersions, getVersion } from './monitor.js';
+import { runMonitor, getChangelog, getVersions, getVersion, getLastChecked } from './monitor.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -74,6 +74,24 @@ app.post('/api/monitor', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Monitor error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/status
+ * Returns monitoring status including last checked timestamp
+ */
+app.get('/api/status', async (req, res) => {
+  try {
+    const lastChecked = await getLastChecked();
+    const versions = await getVersions();
+    res.json({
+      lastChecked,
+      versionCount: versions.length,
+      latestVersion: versions.length > 0 ? versions[versions.length - 1] : null
+    });
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
