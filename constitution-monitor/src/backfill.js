@@ -507,29 +507,36 @@ First archived snapshot of the constitution.
     // No existing changelog
   }
 
-  // Insert historical entries after the header but before live entries
-  let newContent;
-  if (existing && existing.includes('---')) {
-    const parts = existing.split('---');
-    const header = parts[0] + '---\n';
-    const rest = parts.slice(1).join('---');
+  // Check if we already have historical section
+  if (existing.includes('Historical Changes (from Wayback Machine)')) {
+    console.log('Historical section already exists, skipping changelog update');
+    return;
+  }
 
-    // Check if we already have historical section
-    if (existing.includes('Historical Changes (from Wayback Machine)')) {
-      console.log('Historical section already exists, skipping changelog update');
-      return;
-    }
-
-    newContent = header + historicalEntries + '\n## Live Monitoring\n\nChanges detected by automated daily monitoring:\n\n---' + rest;
-  } else {
-    const header = `# Anthropic Constitution Changelog
+  // Build the new changelog with Live Monitoring at top, Historical at bottom
+  const header = `# Anthropic Constitution Changelog
 
 This file tracks all detected changes to [Anthropic's Constitution](https://www.anthropic.com/constitution).
 
 ---
 `;
-    newContent = header + historicalEntries;
+
+  // Extract any existing live monitoring entries (everything after first ---)
+  let liveEntries = '';
+  if (existing && existing.includes('---')) {
+    const parts = existing.split('---');
+    // Skip header, get the rest (live entries)
+    liveEntries = parts.slice(1).join('---').trim();
+    // Remove any "Initial snapshot" type entries that might be duplicates
+    if (liveEntries) {
+      liveEntries = '\n\n' + liveEntries + '\n\n';
+    }
   }
+
+  const newContent = header +
+    '\n## Live Monitoring\n\nChanges detected by automated daily monitoring:\n\n---' +
+    liveEntries +
+    historicalEntries;
 
   await fs.writeFile(CHANGELOG_FILE, newContent);
   console.log('Changelog updated with historical changes');
