@@ -237,20 +237,25 @@ function formatTimestampForFile(ts) {
 }
 
 /**
- * Generate diff summary between two versions
+ * Generate diff summary between two versions (preserving document order)
  */
 function generateDiffSummary(oldContent, newContent) {
-  const oldLines = new Set(oldContent.split('\n').filter(l => l.trim()));
-  const newLines = new Set(newContent.split('\n').filter(l => l.trim()));
+  const oldLines = oldContent.split('\n').filter(l => l.trim());
+  const newLines = newContent.split('\n').filter(l => l.trim());
 
-  const added = [...newLines].filter(l => !oldLines.has(l));
-  const removed = [...oldLines].filter(l => !newLines.has(l));
+  const oldSet = new Set(oldLines);
+  const newSet = new Set(newLines);
+
+  // Additions in the order they appear in the new document
+  const added = newLines.filter(l => !oldSet.has(l));
+  // Removals in the order they appeared in the old document
+  const removed = oldLines.filter(l => !newSet.has(l));
 
   return {
     linesAdded: added.length,
     linesRemoved: removed.length,
-    addedPreview: added.slice(0, 5),
-    removedPreview: removed.slice(0, 5)
+    added,    // Full list in document order
+    removed   // Full list in document order
   };
 }
 
@@ -365,6 +370,7 @@ async function backfill() {
           changes.push({
             timestamp,
             hash,
+            waybackTimestamp: snapshot.timestamp,
             previousTimestamp,
             diffSummary,
             diffFile
@@ -424,6 +430,13 @@ async function backfill() {
 }
 
 /**
+ * Build Wayback Machine URL for a timestamp
+ */
+function getWaybackUrl(waybackTimestamp) {
+  return `https://web.archive.org/web/${waybackTimestamp}/https://www.anthropic.com/constitution`;
+}
+
+/**
  * Update changelog with historical changes
  */
 async function updateChangelogWithHistory(changes, initialVersion) {
@@ -439,10 +452,11 @@ The following changes were detected by analyzing archived snapshots.
 `;
 
   // Add initial version entry
+  const initialWaybackUrl = getWaybackUrl(initialVersion.waybackTimestamp);
   historicalEntries += `
 ## ${initialVersion.timestamp} (Initial - Archived)
 
-**Version:** \`${initialVersion.hash}\`
+**Version:** [\`${initialVersion.hash}\`](${initialWaybackUrl})
 
 First archived snapshot of the constitution.
 
@@ -451,37 +465,35 @@ First archived snapshot of the constitution.
 
   // Add each change (in chronological order)
   for (const change of changes) {
+    const waybackUrl = getWaybackUrl(change.waybackTimestamp);
+
     historicalEntries += `
 ## ${change.timestamp} (Archived)
 
-**Version:** \`${change.hash}\`
+**Version:** [\`${change.hash}\`](${waybackUrl})
 
-### Statistics
-- Lines added: ${change.diffSummary.linesAdded}
-- Lines removed: ${change.diffSummary.linesRemoved}
+**Changes:** +${change.diffSummary.linesAdded} additions, -${change.diffSummary.linesRemoved} removals
 
 `;
 
-    if (change.diffSummary.addedPreview.length > 0) {
-      historicalEntries += '### Sample of additions\n';
-      for (const line of change.diffSummary.addedPreview.slice(0, 3)) {
+    if (change.diffSummary.added.length > 0) {
+      historicalEntries += '<details>\n<summary>Additions</summary>\n\n';
+      for (const line of change.diffSummary.added) {
         if (line.trim()) {
-          const preview = line.length > 200 ? line.slice(0, 200) + '...' : line;
-          historicalEntries += `> ${preview}\n`;
+          historicalEntries += `> ${line}\n\n`;
         }
       }
-      historicalEntries += '\n';
+      historicalEntries += '</details>\n\n';
     }
 
-    if (change.diffSummary.removedPreview.length > 0) {
-      historicalEntries += '### Sample of removals\n';
-      for (const line of change.diffSummary.removedPreview.slice(0, 3)) {
+    if (change.diffSummary.removed.length > 0) {
+      historicalEntries += '<details>\n<summary>Removals</summary>\n\n';
+      for (const line of change.diffSummary.removed) {
         if (line.trim()) {
-          const preview = line.length > 200 ? line.slice(0, 200) + '...' : line;
-          historicalEntries += `> ~~${preview}~~\n`;
+          historicalEntries += `> ~~${line}~~\n\n`;
         }
       }
-      historicalEntries += '\n';
+      historicalEntries += '</details>\n\n';
     }
 
     historicalEntries += '---\n';
