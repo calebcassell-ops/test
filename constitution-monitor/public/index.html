@@ -331,21 +331,27 @@
   </div>
 
   <script>
+    function formatDateTime(isoString) {
+      if (!isoString) return 'Never';
+      const date = new Date(isoString);
+      return date.toLocaleString();
+    }
+
     async function loadChangelog() {
       const loadingEl = document.getElementById('loading');
       const changelogEl = document.getElementById('changelog');
       const errorEl = document.getElementById('error');
 
       try {
-        const [changelogRes, versionsRes] = await Promise.all([
+        const [changelogRes, statusRes] = await Promise.all([
           fetch('/api/changelog'),
-          fetch('/api/versions')
+          fetch('/api/status')
         ]);
 
         if (!changelogRes.ok) throw new Error('Failed to load changelog');
 
         const { changelog } = await changelogRes.json();
-        const { versions } = await versionsRes.json();
+        const { lastChecked, versionCount } = await statusRes.json();
 
         // Render markdown
         changelogEl.innerHTML = marked.parse(changelog);
@@ -354,14 +360,10 @@
 
         // Update status bar
         document.getElementById('version-count').innerHTML =
-          `<span>${versions.length} version${versions.length !== 1 ? 's' : ''} tracked</span>`;
+          `<span>${versionCount} version${versionCount !== 1 ? 's' : ''} tracked</span>`;
 
-        if (versions.length > 0) {
-          const lastVersion = versions[versions.length - 1];
-          const lastDate = new Date(lastVersion.timestamp.replace(' UTC', 'Z'));
-          document.getElementById('last-check').innerHTML =
-            `<span>Last snapshot: ${lastDate.toLocaleDateString()}</span>`;
-        }
+        document.getElementById('last-check').innerHTML =
+          `<span>Last checked: ${formatDateTime(lastChecked)}</span>`;
 
       } catch (err) {
         console.error('Error loading changelog:', err);

@@ -134,6 +134,23 @@ async function saveMetadata(metadata) {
 }
 
 /**
+ * Update the last checked timestamp
+ */
+async function updateLastChecked() {
+  const metadata = await loadMetadata();
+  metadata.lastChecked = new Date().toISOString();
+  await saveMetadata(metadata);
+}
+
+/**
+ * Get the last checked timestamp
+ */
+export async function getLastChecked() {
+  const metadata = await loadMetadata();
+  return metadata.lastChecked || null;
+}
+
+/**
  * Get the latest stored version
  */
 export async function getLatestVersion() {
@@ -351,6 +368,9 @@ export async function runMonitor() {
   console.log('='.repeat(60));
 
   await fs.mkdir(VERSIONS_DIR, { recursive: true });
+
+  // Update last checked timestamp
+  await updateLastChecked();
 
   // Fetch current content
   const currentContent = await fetchConstitution();
