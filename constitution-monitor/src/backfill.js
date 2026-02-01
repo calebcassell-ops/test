@@ -237,25 +237,54 @@ function formatTimestampForFile(ts) {
 }
 
 /**
- * Generate diff summary between two versions (preserving document order)
+ * Split text into sentences
+ */
+function splitIntoSentences(text) {
+  // Split on sentence-ending punctuation followed by space or newline
+  // Keep the punctuation with the sentence
+  return text
+    .replace(/\n+/g, ' ')  // Normalize newlines to spaces
+    .replace(/\s+/g, ' ')  // Normalize whitespace
+    .split(/(?<=[.!?])\s+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 10);  // Filter out very short fragments
+}
+
+/**
+ * Generate diff summary between two versions (by sentence, deduplicated)
  */
 function generateDiffSummary(oldContent, newContent) {
-  const oldLines = oldContent.split('\n').filter(l => l.trim());
-  const newLines = newContent.split('\n').filter(l => l.trim());
+  const oldSentences = splitIntoSentences(oldContent);
+  const newSentences = splitIntoSentences(newContent);
 
-  const oldSet = new Set(oldLines);
-  const newSet = new Set(newLines);
+  const oldSet = new Set(oldSentences);
+  const newSet = new Set(newSentences);
 
-  // Additions in the order they appear in the new document
-  const added = newLines.filter(l => !oldSet.has(l));
-  // Removals in the order they appeared in the old document
-  const removed = oldLines.filter(l => !newSet.has(l));
+  // Find unique additions (in new but not old)
+  const addedSet = new Set();
+  const added = [];
+  for (const s of newSentences) {
+    if (!oldSet.has(s) && !addedSet.has(s)) {
+      addedSet.add(s);
+      added.push(s);
+    }
+  }
+
+  // Find unique removals (in old but not new)
+  const removedSet = new Set();
+  const removed = [];
+  for (const s of oldSentences) {
+    if (!newSet.has(s) && !removedSet.has(s)) {
+      removedSet.add(s);
+      removed.push(s);
+    }
+  }
 
   return {
     linesAdded: added.length,
     linesRemoved: removed.length,
-    added,    // Full list in document order
-    removed   // Full list in document order
+    added,
+    removed
   };
 }
 
