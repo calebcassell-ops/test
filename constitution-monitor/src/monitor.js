@@ -194,18 +194,59 @@ export function generateDiff(oldContent, newContent) {
  * Split text into sentences
  */
 function splitIntoSentences(text) {
-  // Split on sentence-ending punctuation followed by space or newline
-  // Keep the punctuation with the sentence
   return text
-    .replace(/\n+/g, ' ')  // Normalize newlines to spaces
-    .replace(/\s+/g, ' ')  // Normalize whitespace
+    .replace(/\n+/g, ' ')
+    .replace(/\s+/g, ' ')
     .split(/(?<=[.!?])\s+/)
     .map(s => s.trim())
-    .filter(s => s.length > 10);  // Filter out very short fragments
+    .filter(s => s.length > 10);
 }
 
 /**
- * Generate summary statistics of changes (by sentence, deduplicated)
+ * Calculate similarity between two sentences (0-1)
+ */
+function sentenceSimilarity(a, b) {
+  const wordsA = a.toLowerCase().split(/\s+/);
+  const wordsB = b.toLowerCase().split(/\s+/);
+  const setA = new Set(wordsA);
+  const setB = new Set(wordsB);
+
+  const intersection = [...setA].filter(w => setB.has(w)).length;
+  const union = new Set([...wordsA, ...wordsB]).size;
+
+  return union > 0 ? intersection / union : 0;
+}
+
+/**
+ * Generate word-level diff between two similar sentences
+ */
+function wordDiff(oldSentence, newSentence) {
+  const oldWords = oldSentence.split(/\s+/);
+  const newWords = newSentence.split(/\s+/);
+  const oldSet = new Set(oldWords);
+  const newSet = new Set(newWords);
+
+  const removedWords = oldWords.filter(w => !newSet.has(w));
+  const addedWords = newWords.filter(w => !oldSet.has(w));
+
+  if (removedWords.length === 0 && addedWords.length === 0) {
+    return null;
+  }
+
+  let result = '';
+  if (removedWords.length > 0 && addedWords.length > 0) {
+    result = `~~${removedWords.join(' ')}~~ → **${addedWords.join(' ')}**`;
+  } else if (removedWords.length > 0) {
+    result = `~~${removedWords.join(' ')}~~ (removed)`;
+  } else {
+    result = `**${addedWords.join(' ')}** (added)`;
+  }
+
+  return result;
+}
+
+/**
+ * Generate summary statistics of changes (by sentence, with word-level diffs)
  */
 export function generateDiffSummary(oldContent, newContent) {
   const oldSentences = splitIntoSentences(oldContent);
@@ -214,21 +255,51 @@ export function generateDiffSummary(oldContent, newContent) {
   const oldSet = new Set(oldSentences);
   const newSet = new Set(newSentences);
 
-  // Find unique additions (in new but not old)
+  const onlyInOld = oldSentences.filter(s => !newSet.has(s));
+  const onlyInNew = newSentences.filter(s => !oldSet.has(s));
+
+  // Match similar sentences (modifications)
+  const modifications = [];
+  const usedOld = new Set();
+  const usedNew = new Set();
+
+  for (const oldS of onlyInOld) {
+    let bestMatch = null;
+    let bestSimilarity = 0.6;
+
+    for (const newS of onlyInNew) {
+      if (usedNew.has(newS)) continue;
+      const sim = sentenceSimilarity(oldS, newS);
+      if (sim > bestSimilarity) {
+        bestSimilarity = sim;
+        bestMatch = newS;
+      }
+    }
+
+    if (bestMatch) {
+      const diff = wordDiff(oldS, bestMatch);
+      if (diff) {
+        modifications.push({ old: oldS, new: bestMatch, wordDiff: diff });
+        usedOld.add(oldS);
+        usedNew.add(bestMatch);
+      }
+    }
+  }
+
+  // Remaining are pure additions/removals
   const addedSet = new Set();
   const added = [];
-  for (const s of newSentences) {
-    if (!oldSet.has(s) && !addedSet.has(s)) {
+  for (const s of onlyInNew) {
+    if (!usedNew.has(s) && !addedSet.has(s)) {
       addedSet.add(s);
       added.push(s);
     }
   }
 
-  // Find unique removals (in old but not new)
   const removedSet = new Set();
   const removed = [];
-  for (const s of oldSentences) {
-    if (!newSet.has(s) && !removedSet.has(s)) {
+  for (const s of onlyInOld) {
+    if (!usedOld.has(s) && !removedSet.has(s)) {
       removedSet.add(s);
       removed.push(s);
     }
@@ -237,8 +308,10 @@ export function generateDiffSummary(oldContent, newContent) {
   return {
     linesAdded: added.length,
     linesRemoved: removed.length,
+    modificationsCount: modifications.length,
     added,
-    removed
+    removed,
+    modifications
   };
 }
 
@@ -305,7 +378,16 @@ async function updateChangelog(timestamp, versionHash, diffSummary, llmSummary) 
     entry += `### Summary\n${llmSummary}\n\n`;
   }
 
-  entry += `**Changes:** +${diffSummary.linesAdded} additions, -${diffSummary.linesRemoved} removals\n\n`;
+  const modCount = diffSummary.modificationsCount || 0;
+  entry += `**Changes:** +${diffSummary.linesAdded} additions, -${diffSummary.linesRemoved} removals, ~${modCount} modifications\n\n`;
+
+  if (diffSummary.modifications && diffSummary.modifications.length > 0) {
+    entry += '<details>\n<summary>Word Changes</summary>\n\n';
+    for (const mod of diffSummary.modifications) {
+      entry += `> ${mod.wordDiff}\n\n`;
+    }
+    entry += '</details>\n\n';
+  }
 
   if (diffSummary.added.length > 0) {
     entry += '<details>\n<summary>Additions</summary>\n\n';
