@@ -195,7 +195,7 @@
     });
 
     // Phase 2: Void around cursor - circular hole follows mouse
-    const voidRadius = 50;
+    const voidRadius = 30;
 
     function updateVoidMask(e) {
       const btnRect = actuallyStartButton.getBoundingClientRect();
@@ -218,10 +218,8 @@
       }
     });
 
-    // The button can technically be clicked on the edges
-    actuallyStartButton.addEventListener('click', () => {
-      win();
-    });
+    // The second button is never clickable
+    actuallyStartButton.style.pointerEvents = 'none';
 
     function win() {
       phase = 3;
