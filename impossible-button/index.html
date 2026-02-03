@@ -77,8 +77,8 @@
   <button id="actuallyStartButton" class="button">ACTUALLY START</button>
 
   <div id="successScreen">
-    <h1>You did it!</h1>
-    <p>Against all odds, you clicked the button.</p>
+    <h1>Congratulations!</h1>
+    <p>CONTINUAL LEARNING SOLVED</p>
   </div>
 
   <script>
@@ -88,7 +88,7 @@
 
     let escapeCount = 0;
     const escapeThreshold = 10;
-    let phase = 1; // 1 = running button, 2 = void cursor button
+    let phase = 1; // 1 = running button only, 2 = both buttons
 
     let buttonX, buttonY;
     let targetX, targetY;
@@ -120,9 +120,9 @@
       }
     });
 
-    // Animation loop for smooth button movement
+    // Animation loop for smooth button movement (runs in both phases)
     function animateButton() {
-      if (phase !== 1) {
+      if (phase === 3) {
         requestAnimationFrame(animateButton);
         return;
       }
@@ -137,7 +137,10 @@
       // If mouse is close, pick a new target to run to
       if (distToMouse < runThreshold && !isRunning) {
         isRunning = true;
-        escapeCount++;
+
+        if (phase === 1) {
+          escapeCount++;
+        }
 
         const padding = 100;
         const maxX = window.innerWidth - startButton.offsetWidth - padding;
@@ -159,10 +162,9 @@
         targetY = Math.max(padding, Math.min(maxY, newY));
 
         // Check for phase transition
-        if (escapeCount >= escapeThreshold) {
+        if (escapeCount >= escapeThreshold && phase === 1) {
           setTimeout(() => {
             phase = 2;
-            startButton.style.display = 'none';
             actuallyStartButton.style.display = 'block';
             centerButton(actuallyStartButton);
           }, 300);
@@ -203,11 +205,10 @@
       const relY = e.clientY - btnRect.top;
 
       // Create a mask with a circular hole where the cursor is
-      // Using radial-gradient: transparent circle at cursor, white everywhere else
-      actuallyStartButton.style.maskImage = `radial-gradient(circle ${voidRadius}px at ${relX}px ${relY}px, transparent 0%, transparent 100%), linear-gradient(white, white)`;
-      actuallyStartButton.style.maskComposite = 'exclude';
-      actuallyStartButton.style.webkitMaskImage = `radial-gradient(circle ${voidRadius}px at ${relX}px ${relY}px, transparent 0%, transparent 100%), linear-gradient(white, white)`;
-      actuallyStartButton.style.webkitMaskComposite = 'destination-out';
+      // Transparent circle at cursor, opaque everywhere else
+      const mask = `radial-gradient(circle ${voidRadius}px at ${relX}px ${relY}px, transparent 0%, transparent ${voidRadius}px, black ${voidRadius}px)`;
+      actuallyStartButton.style.webkitMaskImage = mask;
+      actuallyStartButton.style.maskImage = mask;
     }
 
     // Easter egg: keyboard shortcut to win
@@ -257,7 +258,7 @@
 
     // Handle window resize
     window.addEventListener('resize', () => {
-      if (phase === 1) {
+      if (phase === 1 || phase === 2) {
         const pos = centerButton(startButton);
         buttonX = pos.x;
         buttonY = pos.y;
