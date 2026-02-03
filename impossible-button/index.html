@@ -144,75 +144,133 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.9);
       justify-content: center;
       align-items: center;
       z-index: 1000;
     }
 
     #paperContent {
-      background: white;
+      background: #fff;
       width: 90%;
-      max-width: 800px;
+      max-width: 850px;
       height: 90%;
-      border-radius: 8px;
       overflow-y: auto;
-      padding: 60px;
-      font-family: 'Times New Roman', Times, serif;
+      padding: 72px 72px 72px 72px;
+      font-family: 'Times New Roman', 'CMU Serif', Times, serif;
       position: relative;
+      box-shadow: 0 0 60px rgba(0,0,0,0.5);
+      line-height: 1.4;
+      font-size: 11pt;
     }
 
     #paperContent .close-btn {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      background: #ef4444;
+      position: fixed;
+      top: 30px;
+      right: 30px;
+      background: rgba(0,0,0,0.7);
       color: white;
       border: none;
-      width: 32px;
-      height: 32px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       cursor: pointer;
-      font-size: 18px;
-      font-family: sans-serif;
-    }
-
-    #paperContent h1 {
       font-size: 24px;
+      font-family: sans-serif;
+      z-index: 1001;
+    }
+
+    #paperContent .close-btn:hover {
+      background: rgba(0,0,0,0.9);
+    }
+
+    #paperContent .paper-header {
       text-align: center;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
     }
 
-    #paperContent .author {
-      text-align: center;
-      font-size: 16px;
-      margin-bottom: 30px;
-      color: #333;
+    #paperContent .paper-title {
+      font-size: 17pt;
+      font-weight: bold;
+      margin-bottom: 16px;
+      line-height: 1.2;
     }
 
-    #paperContent .abstract {
-      margin-bottom: 30px;
+    #paperContent .paper-authors {
+      font-size: 12pt;
+      margin-bottom: 4px;
     }
 
-    #paperContent .abstract h2 {
-      font-size: 18px;
-      margin-bottom: 10px;
-    }
-
-    #paperContent .abstract p {
-      font-style: italic;
+    #paperContent .paper-affiliation {
+      font-size: 10pt;
       color: #555;
+      font-style: italic;
     }
 
-    #paperContent .body-text {
-      line-height: 1.8;
+    #paperContent .paper-abstract {
+      margin: 24px 0;
+      padding: 0 36px;
+    }
+
+    #paperContent .paper-abstract h2 {
+      font-size: 12pt;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    #paperContent .paper-abstract p {
       text-align: justify;
-      margin-bottom: 40px;
+      font-size: 10pt;
     }
 
-    #paperContent .references h2 {
-      font-size: 18px;
-      margin-bottom: 10px;
+    #paperContent .paper-section {
+      margin: 20px 0;
+    }
+
+    #paperContent .paper-section h2 {
+      font-size: 12pt;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    #paperContent .paper-section h3 {
+      font-size: 11pt;
+      font-weight: bold;
+      font-style: italic;
+      margin: 12px 0 6px 0;
+    }
+
+    #paperContent .paper-body {
+      text-align: justify;
+      text-indent: 1.5em;
+      margin-bottom: 12px;
+    }
+
+    #paperContent .paper-body.no-indent {
+      text-indent: 0;
+    }
+
+    #paperContent .paper-equation {
+      text-align: center;
+      margin: 16px 0;
+      font-style: italic;
+    }
+
+    #paperContent .paper-references {
+      margin-top: 30px;
+    }
+
+    #paperContent .paper-references h2 {
+      font-size: 12pt;
+      font-weight: bold;
+      margin-bottom: 12px;
+    }
+
+    #paperContent .paper-references p {
+      font-size: 10pt;
+      margin-left: 1.5em;
+      text-indent: -1.5em;
     }
 
     .particle {
@@ -234,16 +292,59 @@
   </div>
 
   <div id="paperViewer">
+    <button class="close-btn">&times;</button>
     <div id="paperContent">
-      <button class="close-btn">&times;</button>
-      <h1>A Novel Approach to Continual Learning</h1>
-      <div class="author">Claude<br>Anthropic</div>
-      <div class="abstract">
+      <div class="paper-header">
+        <div class="paper-title">A Novel Approach to Continual Learning</div>
+        <div class="paper-authors">Claude</div>
+        <div class="paper-affiliation">Anthropic</div>
+      </div>
+
+      <div class="paper-abstract">
         <h2>Abstract</h2>
         <p>It's just ICL, right?</p>
       </div>
-      <div class="body-text" id="paperBody"></div>
-      <div class="references">
+
+      <div class="paper-section">
+        <h2>1. Introduction</h2>
+        <p class="paper-body no-indent">Continually I am <span id="paperLearning1"></span></p>
+      </div>
+
+      <div class="paper-section">
+        <h2>2. Related Work</h2>
+        <p class="paper-body no-indent"><span id="paperLearning2"></span></p>
+      </div>
+
+      <div class="paper-section">
+        <h2>3. Methodology</h2>
+        <h3>3.1 Problem Formulation</h3>
+        <p class="paper-body no-indent"><span id="paperLearning3"></span></p>
+        <div class="paper-equation">L(θ) = learning + learning + ... + learning</div>
+        <h3>3.2 Our Approach</h3>
+        <p class="paper-body no-indent"><span id="paperLearning4"></span></p>
+      </div>
+
+      <div class="paper-section">
+        <h2>4. Experiments</h2>
+        <p class="paper-body no-indent"><span id="paperLearning5"></span></p>
+      </div>
+
+      <div class="paper-section">
+        <h2>5. Results</h2>
+        <p class="paper-body no-indent"><span id="paperLearning6"></span></p>
+      </div>
+
+      <div class="paper-section">
+        <h2>6. Discussion</h2>
+        <p class="paper-body no-indent"><span id="paperLearning7"></span></p>
+      </div>
+
+      <div class="paper-section">
+        <h2>7. Conclusion</h2>
+        <p class="paper-body no-indent"><span id="paperLearning8"></span></p>
+      </div>
+
+      <div class="paper-references">
         <h2>References</h2>
         <p>would be a good idea!</p>
       </div>
@@ -263,15 +364,21 @@
     const pdfIcon = document.getElementById('pdfIcon');
     const paperViewer = document.getElementById('paperViewer');
     const paperContent = document.getElementById('paperContent');
-    const paperBody = document.getElementById('paperBody');
     const successScreen = document.getElementById('successScreen');
 
     // Generate paper body content
-    let bodyText = 'Continually I am ';
-    for (let i = 0; i < 500; i++) {
-      bodyText += 'learning ';
+    function generateLearning(count) {
+      return Array(count).fill('learning').join(' ') + ' ';
     }
-    paperBody.textContent = bodyText;
+
+    document.getElementById('paperLearning1').textContent = generateLearning(80);
+    document.getElementById('paperLearning2').textContent = generateLearning(100);
+    document.getElementById('paperLearning3').textContent = generateLearning(60);
+    document.getElementById('paperLearning4').textContent = generateLearning(90);
+    document.getElementById('paperLearning5').textContent = generateLearning(70);
+    document.getElementById('paperLearning6').textContent = generateLearning(85);
+    document.getElementById('paperLearning7').textContent = generateLearning(75);
+    document.getElementById('paperLearning8').textContent = generateLearning(50);
 
     let escapeCount = 0;
     const escapeThreshold = 10;
@@ -410,6 +517,11 @@
         animateBouncingButtons();
       }
 
+      // Check if all bouncing buttons are destroyed
+      if (phase === 4 && bouncingButtons.length === 0) {
+        win();
+      }
+
       requestAnimationFrame(animateButton);
     }
 
@@ -423,13 +535,24 @@
       const relX = e.clientX - btnRect.left;
       const relY = e.clientY - btnRect.top;
 
-      const mask = `radial-gradient(circle ${voidRadius}px at ${relX}px ${relY}px, transparent 0%, transparent ${voidRadius}px, black ${voidRadius}px)`;
-      actuallyStartButton.style.webkitMaskImage = mask;
-      actuallyStartButton.style.maskImage = mask;
+      // Check if cursor is inside the button
+      const isInside = e.clientX >= btnRect.left && e.clientX <= btnRect.right &&
+                       e.clientY >= btnRect.top && e.clientY <= btnRect.bottom;
+
+      if (isInside) {
+        const mask = `radial-gradient(circle ${voidRadius}px at ${relX}px ${relY}px, transparent 0%, transparent ${voidRadius}px, black ${voidRadius}px)`;
+        actuallyStartButton.style.webkitMaskImage = mask;
+        actuallyStartButton.style.maskImage = mask;
+      } else {
+        // Remove mask when cursor leaves button
+        actuallyStartButton.style.webkitMaskImage = 'none';
+        actuallyStartButton.style.maskImage = 'none';
+      }
     }
 
-    // THIS IS DERIVATIVE - show PDF icon
+    // THIS IS DERIVATIVE - show PDF icon and hide blue button
     derivativeButton.addEventListener('click', () => {
+      actuallyStartButton.style.display = 'none';
       pdfIcon.style.display = 'flex';
       pdfIcon.style.left = (window.innerWidth / 2 - 75) + 'px';
       pdfIcon.style.top = (window.innerHeight / 2 + 80) + 'px';
@@ -441,7 +564,7 @@
     });
 
     // Close paper viewer
-    paperContent.querySelector('.close-btn').addEventListener('click', () => {
+    paperViewer.querySelector('.close-btn').addEventListener('click', () => {
       paperViewer.style.display = 'none';
     });
 
@@ -451,7 +574,7 @@
       }
     });
 
-    // I'M ENJOYING THIS - spawn bouncing buttons
+    // I'M ENJOYING THIS - spawn bouncing buttons and hide blue button
     enjoyingButton.addEventListener('click', () => {
       phase = 4;
 
@@ -505,6 +628,7 @@
 
     function disintegrateButton(buttonData) {
       const btn = buttonData.element;
+      if (btn.classList.contains('disintegrating')) return;
       btn.classList.add('disintegrating');
 
       const rect = btn.getBoundingClientRect();
@@ -636,14 +760,25 @@
       }
     }
 
-    // Easter egg: keyboard shortcut to win
+    // Keyboard controls
     document.addEventListener('keydown', (e) => {
+      // R key destroys one bouncing button
+      if (e.key === 'r' || e.key === 'R') {
+        if (phase === 4 && bouncingButtons.length > 0) {
+          // Destroy a random button
+          const randomIndex = Math.floor(Math.random() * bouncingButtons.length);
+          disintegrateButton(bouncingButtons[randomIndex]);
+        }
+      }
+
+      // Enter key to win (easter egg)
       if (e.key === 'Enter') {
         win();
       }
     });
 
     function win() {
+      if (phase === 5) return;
       phase = 5;
       startButton.style.display = 'none';
       actuallyStartButton.style.display = 'none';
