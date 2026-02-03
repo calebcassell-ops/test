@@ -28,7 +28,6 @@
       border: none;
       border-radius: 12px;
       cursor: pointer;
-      transition: transform 0.1s, box-shadow 0.1s;
       position: absolute;
     }
 
@@ -36,10 +35,7 @@
       background: linear-gradient(145deg, #4ade80, #22c55e);
       color: white;
       box-shadow: 0 8px 32px rgba(74, 222, 128, 0.4);
-    }
-
-    #startButton:hover {
-      transform: scale(1.05);
+      transition: none;
     }
 
     #actuallyStartButton {
@@ -49,13 +45,6 @@
       display: none;
       font-size: 24px;
       padding: 18px 48px;
-    }
-
-    .hint {
-      position: fixed;
-      bottom: 40px;
-      color: rgba(255, 255, 255, 0.3);
-      font-size: 14px;
     }
 
     #successScreen {
@@ -85,120 +74,140 @@
 </head>
 <body>
   <button id="startButton" class="button">START</button>
-  <button id="actuallyStartButton" class="button">Actually Start</button>
+  <button id="actuallyStartButton" class="button">ACTUALLY START</button>
 
   <div id="successScreen">
     <h1>You did it!</h1>
     <p>Against all odds, you clicked the button.</p>
   </div>
 
-  <p class="hint" id="hint"></p>
-
   <script>
     const startButton = document.getElementById('startButton');
     const actuallyStartButton = document.getElementById('actuallyStartButton');
     const successScreen = document.getElementById('successScreen');
-    const hint = document.getElementById('hint');
 
     let escapeCount = 0;
-    const escapeThreshold = 5;
+    const escapeThreshold = 10;
     let phase = 1; // 1 = running button, 2 = void cursor button
+
+    let buttonX, buttonY;
+    let targetX, targetY;
+    let isRunning = false;
+    let mouseX = 0, mouseY = 0;
 
     // Center the start button initially
     function centerButton(btn) {
-      btn.style.left = (window.innerWidth / 2 - btn.offsetWidth / 2) + 'px';
-      btn.style.top = (window.innerHeight / 2 - btn.offsetHeight / 2) + 'px';
+      const x = window.innerWidth / 2 - btn.offsetWidth / 2;
+      const y = window.innerHeight / 2 - btn.offsetHeight / 2;
+      btn.style.left = x + 'px';
+      btn.style.top = y + 'px';
+      return { x, y };
     }
 
-    centerButton(startButton);
+    const initialPos = centerButton(startButton);
+    buttonX = initialPos.x;
+    buttonY = initialPos.y;
+    targetX = buttonX;
+    targetY = buttonY;
 
-    // Phase 1: Button runs away
-    startButton.addEventListener('mouseover', (e) => {
-      if (phase !== 1) return;
+    // Track mouse position
+    document.addEventListener('mousemove', (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
 
-      escapeCount++;
-
-      const padding = 100;
-      const maxX = window.innerWidth - startButton.offsetWidth - padding;
-      const maxY = window.innerHeight - startButton.offsetHeight - padding;
-
-      let newX, newY;
-      let attempts = 0;
-
-      // Find a position away from the mouse
-      do {
-        newX = padding + Math.random() * maxX;
-        newY = padding + Math.random() * maxY;
-        attempts++;
-      } while (
-        attempts < 50 &&
-        Math.hypot(newX - e.clientX, newY - e.clientY) < 200
-      );
-
-      startButton.style.left = newX + 'px';
-      startButton.style.top = newY + 'px';
-
-      // Show hints based on escape count
-      if (escapeCount === 2) {
-        hint.textContent = "Just click the button...";
-      } else if (escapeCount === 4) {
-        hint.textContent = "Come on, it's not that hard";
-      }
-
-      // Transition to phase 2
-      if (escapeCount >= escapeThreshold) {
-        phase = 2;
-        startButton.style.display = 'none';
-        actuallyStartButton.style.display = 'block';
-        centerButton(actuallyStartButton);
-        hint.textContent = "Fine, here's the real button";
-
-        // Start the void cursor effect
-        document.addEventListener('mousemove', voidCursorEffect);
+      if (phase === 2) {
+        updateVoidMask(e);
       }
     });
+
+    // Animation loop for smooth button movement
+    function animateButton() {
+      if (phase !== 1) {
+        requestAnimationFrame(animateButton);
+        return;
+      }
+
+      const btnRect = startButton.getBoundingClientRect();
+      const btnCenterX = btnRect.left + btnRect.width / 2;
+      const btnCenterY = btnRect.top + btnRect.height / 2;
+
+      const distToMouse = Math.hypot(btnCenterX - mouseX, btnCenterY - mouseY);
+      const runThreshold = 120;
+
+      // If mouse is close, pick a new target to run to
+      if (distToMouse < runThreshold && !isRunning) {
+        isRunning = true;
+        escapeCount++;
+
+        const padding = 100;
+        const maxX = window.innerWidth - startButton.offsetWidth - padding;
+        const maxY = window.innerHeight - startButton.offsetHeight - padding;
+
+        // Run away from the mouse
+        const angle = Math.atan2(btnCenterY - mouseY, btnCenterX - mouseX);
+        const runDistance = 200 + Math.random() * 150;
+
+        let newX = buttonX + Math.cos(angle) * runDistance;
+        let newY = buttonY + Math.sin(angle) * runDistance;
+
+        // Add some randomness to the angle
+        newX += (Math.random() - 0.5) * 100;
+        newY += (Math.random() - 0.5) * 100;
+
+        // Clamp to screen
+        targetX = Math.max(padding, Math.min(maxX, newX));
+        targetY = Math.max(padding, Math.min(maxY, newY));
+
+        // Check for phase transition
+        if (escapeCount >= escapeThreshold) {
+          setTimeout(() => {
+            phase = 2;
+            startButton.style.display = 'none';
+            actuallyStartButton.style.display = 'block';
+            centerButton(actuallyStartButton);
+          }, 300);
+        }
+      }
+
+      // Smooth movement towards target
+      const speed = 0.15;
+      buttonX += (targetX - buttonX) * speed;
+      buttonY += (targetY - buttonY) * speed;
+
+      startButton.style.left = buttonX + 'px';
+      startButton.style.top = buttonY + 'px';
+
+      // Check if we've arrived at target
+      if (Math.hypot(targetX - buttonX, targetY - buttonY) < 1) {
+        isRunning = false;
+      }
+
+      requestAnimationFrame(animateButton);
+    }
+
+    animateButton();
 
     // Make start button actually clickable (if they somehow get it)
     startButton.addEventListener('click', () => {
       win();
     });
 
-    // Phase 2: Void around cursor
-    const voidRadius = 80;
-    let buttonBaseX, buttonBaseY;
+    // Phase 2: Void around cursor - circular hole follows mouse
+    const voidRadius = 50;
 
-    function voidCursorEffect(e) {
-      if (phase !== 2) return;
-
+    function updateVoidMask(e) {
       const btnRect = actuallyStartButton.getBoundingClientRect();
-      const btnCenterX = btnRect.left + btnRect.width / 2;
-      const btnCenterY = btnRect.top + btnRect.height / 2;
 
-      const dx = btnCenterX - e.clientX;
-      const dy = btnCenterY - e.clientY;
-      const distance = Math.hypot(dx, dy);
+      // Calculate mouse position relative to button
+      const relX = e.clientX - btnRect.left;
+      const relY = e.clientY - btnRect.top;
 
-      // If cursor is close to button center, push the button away
-      if (distance < voidRadius + Math.max(btnRect.width, btnRect.height) / 2) {
-        const angle = Math.atan2(dy, dx);
-        const pushDistance = voidRadius + Math.max(btnRect.width, btnRect.height) / 2 - distance;
-
-        const newX = btnRect.left + Math.cos(angle) * pushDistance;
-        const newY = btnRect.top + Math.sin(angle) * pushDistance;
-
-        // Clamp to screen bounds
-        const clampedX = Math.max(20, Math.min(window.innerWidth - btnRect.width - 20, newX));
-        const clampedY = Math.max(20, Math.min(window.innerHeight - btnRect.height - 20, newY));
-
-        actuallyStartButton.style.left = clampedX + 'px';
-        actuallyStartButton.style.top = clampedY + 'px';
-
-        // Update hint after some chasing
-        if (escapeCount > escapeThreshold + 3) {
-          hint.textContent = "The void follows you...";
-        }
-        escapeCount++;
-      }
+      // Create a mask with a circular hole where the cursor is
+      // Using radial-gradient: transparent circle at cursor, white everywhere else
+      actuallyStartButton.style.maskImage = `radial-gradient(circle ${voidRadius}px at ${relX}px ${relY}px, transparent 0%, transparent 100%), linear-gradient(white, white)`;
+      actuallyStartButton.style.maskComposite = 'exclude';
+      actuallyStartButton.style.webkitMaskImage = `radial-gradient(circle ${voidRadius}px at ${relX}px ${relY}px, transparent 0%, transparent 100%), linear-gradient(white, white)`;
+      actuallyStartButton.style.webkitMaskComposite = 'destination-out';
     }
 
     // Easter egg: keyboard shortcut to win
@@ -208,17 +217,15 @@
       }
     });
 
-    // Actually clicking the button (nearly impossible)
+    // The button can technically be clicked on the edges
     actuallyStartButton.addEventListener('click', () => {
       win();
     });
 
     function win() {
       phase = 3;
-      document.removeEventListener('mousemove', voidCursorEffect);
       startButton.style.display = 'none';
       actuallyStartButton.style.display = 'none';
-      hint.style.display = 'none';
       successScreen.style.display = 'flex';
 
       // Confetti celebration
@@ -250,7 +257,13 @@
 
     // Handle window resize
     window.addEventListener('resize', () => {
-      if (phase === 1) centerButton(startButton);
+      if (phase === 1) {
+        const pos = centerButton(startButton);
+        buttonX = pos.x;
+        buttonY = pos.y;
+        targetX = buttonX;
+        targetY = buttonY;
+      }
       if (phase === 2) centerButton(actuallyStartButton);
     });
   </script>
