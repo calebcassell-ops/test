@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Start</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      height: 100vh;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .button {
+      padding: 24px 64px;
+      font-size: 32px;
+      font-weight: bold;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.1s;
+      position: absolute;
+    }
+
+    #startButton {
+      background: linear-gradient(145deg, #4ade80, #22c55e);
+      color: white;
+      box-shadow: 0 8px 32px rgba(74, 222, 128, 0.4);
+    }
+
+    #startButton:hover {
+      transform: scale(1.05);
+    }
+
+    #actuallyStartButton {
+      background: linear-gradient(145deg, #60a5fa, #3b82f6);
+      color: white;
+      box-shadow: 0 8px 32px rgba(96, 165, 250, 0.4);
+      display: none;
+      font-size: 24px;
+      padding: 18px 48px;
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 40px;
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 14px;
+    }
+
+    #successScreen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    #successScreen h1 {
+      color: white;
+      font-size: 48px;
+    }
+
+    #successScreen p {
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 18px;
+    }
+
+    .confetti {
+      position: fixed;
+      width: 10px;
+      height: 10px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <button id="startButton" class="button">START</button>
+  <button id="actuallyStartButton" class="button">Actually Start</button>
+
+  <div id="successScreen">
+    <h1>You did it!</h1>
+    <p>Against all odds, you clicked the button.</p>
+  </div>
+
+  <p class="hint" id="hint"></p>
+
+  <script>
+    const startButton = document.getElementById('startButton');
+    const actuallyStartButton = document.getElementById('actuallyStartButton');
+    const successScreen = document.getElementById('successScreen');
+    const hint = document.getElementById('hint');
+
+    let escapeCount = 0;
+    const escapeThreshold = 5;
+    let phase = 1; // 1 = running button, 2 = void cursor button
+
+    // Center the start button initially
+    function centerButton(btn) {
+      btn.style.left = (window.innerWidth / 2 - btn.offsetWidth / 2) + 'px';
+      btn.style.top = (window.innerHeight / 2 - btn.offsetHeight / 2) + 'px';
+    }
+
+    centerButton(startButton);
+
+    // Phase 1: Button runs away
+    startButton.addEventListener('mouseover', (e) => {
+      if (phase !== 1) return;
+
+      escapeCount++;
+
+      const padding = 100;
+      const maxX = window.innerWidth - startButton.offsetWidth - padding;
+      const maxY = window.innerHeight - startButton.offsetHeight - padding;
+
+      let newX, newY;
+      let attempts = 0;
+
+      // Find a position away from the mouse
+      do {
+        newX = padding + Math.random() * maxX;
+        newY = padding + Math.random() * maxY;
+        attempts++;
+      } while (
+        attempts < 50 &&
+        Math.hypot(newX - e.clientX, newY - e.clientY) < 200
+      );
+
+      startButton.style.left = newX + 'px';
+      startButton.style.top = newY + 'px';
+
+      // Show hints based on escape count
+      if (escapeCount === 2) {
+        hint.textContent = "Just click the button...";
+      } else if (escapeCount === 4) {
+        hint.textContent = "Come on, it's not that hard";
+      }
+
+      // Transition to phase 2
+      if (escapeCount >= escapeThreshold) {
+        phase = 2;
+        startButton.style.display = 'none';
+        actuallyStartButton.style.display = 'block';
+        centerButton(actuallyStartButton);
+        hint.textContent = "Fine, here's the real button";
+
+        // Start the void cursor effect
+        document.addEventListener('mousemove', voidCursorEffect);
+      }
+    });
+
+    // Make start button actually clickable (if they somehow get it)
+    startButton.addEventListener('click', () => {
+      win();
+    });
+
+    // Phase 2: Void around cursor
+    const voidRadius = 80;
+    let buttonBaseX, buttonBaseY;
+
+    function voidCursorEffect(e) {
+      if (phase !== 2) return;
+
+      const btnRect = actuallyStartButton.getBoundingClientRect();
+      const btnCenterX = btnRect.left + btnRect.width / 2;
+      const btnCenterY = btnRect.top + btnRect.height / 2;
+
+      const dx = btnCenterX - e.clientX;
+      const dy = btnCenterY - e.clientY;
+      const distance = Math.hypot(dx, dy);
+
+      // If cursor is close to button center, push the button away
+      if (distance < voidRadius + Math.max(btnRect.width, btnRect.height) / 2) {
+        const angle = Math.atan2(dy, dx);
+        const pushDistance = voidRadius + Math.max(btnRect.width, btnRect.height) / 2 - distance;
+
+        const newX = btnRect.left + Math.cos(angle) * pushDistance;
+        const newY = btnRect.top + Math.sin(angle) * pushDistance;
+
+        // Clamp to screen bounds
+        const clampedX = Math.max(20, Math.min(window.innerWidth - btnRect.width - 20, newX));
+        const clampedY = Math.max(20, Math.min(window.innerHeight - btnRect.height - 20, newY));
+
+        actuallyStartButton.style.left = clampedX + 'px';
+        actuallyStartButton.style.top = clampedY + 'px';
+
+        // Update hint after some chasing
+        if (escapeCount > escapeThreshold + 3) {
+          hint.textContent = "The void follows you...";
+        }
+        escapeCount++;
+      }
+    }
+
+    // Easter egg: keyboard shortcut to win
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        win();
+      }
+    });
+
+    // Actually clicking the button (nearly impossible)
+    actuallyStartButton.addEventListener('click', () => {
+      win();
+    });
+
+    function win() {
+      phase = 3;
+      document.removeEventListener('mousemove', voidCursorEffect);
+      startButton.style.display = 'none';
+      actuallyStartButton.style.display = 'none';
+      hint.style.display = 'none';
+      successScreen.style.display = 'flex';
+
+      // Confetti celebration
+      for (let i = 0; i < 100; i++) {
+        createConfetti();
+      }
+    }
+
+    function createConfetti() {
+      const confetti = document.createElement('div');
+      confetti.className = 'confetti';
+      confetti.style.left = Math.random() * window.innerWidth + 'px';
+      confetti.style.top = -10 + 'px';
+      confetti.style.background = `hsl(${Math.random() * 360}, 80%, 60%)`;
+      confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+      document.body.appendChild(confetti);
+
+      const duration = 2000 + Math.random() * 2000;
+      const xDrift = (Math.random() - 0.5) * 200;
+
+      confetti.animate([
+        { transform: 'translateY(0) rotate(0deg)', opacity: 1 },
+        { transform: `translateY(${window.innerHeight + 20}px) translateX(${xDrift}px) rotate(${Math.random() * 720}deg)`, opacity: 0 }
+      ], {
+        duration: duration,
+        easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+      }).onfinish = () => confetti.remove();
+    }
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      if (phase === 1) centerButton(startButton);
+      if (phase === 2) centerButton(actuallyStartButton);
+    });
+  </script>
+</body>
+</html>
