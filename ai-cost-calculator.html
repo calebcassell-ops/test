@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Cost & ROI Calculator — Compare LLM API Pricing</title>
+<meta name="description" content="Calculate and compare AI API costs across providers. Estimate ROI, project spending at scale, and optimize your AI budget.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0f;--surface:#12121a;--surface2:#1a1a26;--surface3:#22222f;
+  --border:#2a2a3a;--text:#e0e0ee;--text2:#8888aa;--text3:#555570;
+  --accent:#6c5ce7;--accent2:#a29bfe;--accent-glow:rgba(108,92,231,.15);
+  --green:#00b894;--green-bg:rgba(0,184,148,.1);
+  --red:#ff6b6b;--red-bg:rgba(255,107,107,.1);
+  --orange:#fdcb6e;--orange-bg:rgba(253,203,110,.1);
+  --blue:#74b9ff;--blue-bg:rgba(116,185,255,.1);
+  --radius:10px;--radius-sm:6px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh}
+a{color:var(--accent2);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* Layout */
+.container{max-width:1200px;margin:0 auto;padding:0 20px}
+header{padding:30px 0 20px;border-bottom:1px solid var(--border)}
+header h1{font-size:1.8rem;font-weight:700;letter-spacing:-.02em}
+header h1 span{color:var(--accent2)}
+header p{color:var(--text2);font-size:.95rem;margin-top:4px}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;margin:24px 0 20px;background:var(--surface);border-radius:var(--radius);padding:4px;border:1px solid var(--border)}
+.tab{flex:1;padding:10px 16px;text-align:center;border-radius:var(--radius-sm);cursor:pointer;font-size:.9rem;font-weight:500;color:var(--text2);transition:all .2s;border:none;background:none}
+.tab:hover{color:var(--text);background:var(--surface2)}
+.tab.active{background:var(--accent);color:#fff}
+
+/* Panels */
+.panel{display:none}
+.panel.active{display:block}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:16px}
+.card h2{font-size:1.1rem;margin-bottom:16px;color:var(--text)}
+.card h3{font-size:.95rem;margin-bottom:12px;color:var(--text2)}
+
+/* Forms */
+.form-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:16px}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;color:var(--text2);font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+.form-group input,.form-group select{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;color:var(--text);font-size:.95rem;outline:none;transition:border-color .2s}
+.form-group input:focus,.form-group select:focus{border-color:var(--accent)}
+.form-group select{cursor:pointer}
+.form-group .hint{font-size:.75rem;color:var(--text3)}
+
+/* Buttons */
+.btn{padding:10px 24px;border-radius:var(--radius-sm);font-size:.9rem;font-weight:600;cursor:pointer;border:none;transition:all .2s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#5a4bd6}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--surface3)}
+.btn-sm{padding:6px 14px;font-size:.8rem}
+
+/* Results grid */
+.results-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:20px}
+.result-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center;position:relative;overflow:hidden}
+.result-card.best::before{content:'BEST VALUE';position:absolute;top:10px;right:-28px;background:var(--green);color:#fff;font-size:.65rem;font-weight:700;padding:2px 30px;transform:rotate(45deg);letter-spacing:.05em}
+.result-card .provider-name{font-size:.85rem;color:var(--text2);margin-bottom:2px;font-weight:500}
+.result-card .model-name{font-size:1rem;font-weight:700;margin-bottom:12px}
+.result-card .cost{font-size:2rem;font-weight:800;color:var(--accent2)}
+.result-card .cost-period{font-size:.8rem;color:var(--text2);margin-bottom:12px}
+.result-card .details{font-size:.8rem;color:var(--text3);line-height:1.8}
+.result-card .details .row{display:flex;justify-content:space-between}
+.result-card .details .row span:last-child{color:var(--text2)}
+
+/* Comparison table */
+.comparison-table{width:100%;border-collapse:collapse;margin-top:16px;font-size:.85rem}
+.comparison-table th{text-align:left;padding:10px 12px;border-bottom:2px solid var(--border);color:var(--text2);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;user-select:none;white-space:nowrap}
+.comparison-table th:hover{color:var(--accent2)}
+.comparison-table th.sorted-asc::after{content:' ▲';color:var(--accent2)}
+.comparison-table th.sorted-desc::after{content:' ▼';color:var(--accent2)}
+.comparison-table td{padding:10px 12px;border-bottom:1px solid var(--border)}
+.comparison-table tr:hover td{background:var(--accent-glow)}
+.comparison-table .cheapest{color:var(--green);font-weight:600}
+.comparison-table .expensive{color:var(--red)}
+
+/* ROI section */
+.roi-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-top:16px}
+.roi-metric{background:var(--surface2);border-radius:var(--radius-sm);padding:16px;text-align:center}
+.roi-metric .label{font-size:.75rem;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.roi-metric .value{font-size:1.6rem;font-weight:800}
+.roi-metric .value.positive{color:var(--green)}
+.roi-metric .value.negative{color:var(--red)}
+.roi-metric .value.neutral{color:var(--orange)}
+.roi-metric .sub{font-size:.75rem;color:var(--text3);margin-top:2px}
+
+/* Chart */
+.chart-container{position:relative;height:300px;margin-top:20px;background:var(--surface2);border-radius:var(--radius);padding:20px;border:1px solid var(--border)}
+.bar-chart{display:flex;align-items:flex-end;gap:8px;height:220px;padding:0 10px}
+.bar-group{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:60px}
+.bar{width:100%;max-width:50px;border-radius:4px 4px 0 0;transition:height .5s ease;position:relative;cursor:pointer;min-height:2px}
+.bar:hover{opacity:.85}
+.bar .tooltip{display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:var(--surface3);border:1px solid var(--border);padding:6px 10px;border-radius:var(--radius-sm);font-size:.75rem;white-space:nowrap;z-index:10;color:var(--text)}
+.bar:hover .tooltip{display:block}
+.bar-label{font-size:.7rem;color:var(--text3);text-align:center;word-break:break-word;max-width:80px}
+
+/* Scale projection */
+.scale-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.scale-card{background:var(--surface2);border-radius:var(--radius-sm);padding:16px}
+.scale-card h4{font-size:.8rem;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em}
+.scale-card .projection{font-size:1.3rem;font-weight:700;margin-bottom:4px}
+.scale-card .context{font-size:.8rem;color:var(--text3)}
+
+/* Responsive */
+@media(max-width:768px){
+  header h1{font-size:1.3rem}
+  .form-row{grid-template-columns:1fr}
+  .results-grid{grid-template-columns:1fr}
+  .roi-summary{grid-template-columns:1fr 1fr}
+  .scale-grid{grid-template-columns:1fr}
+  .tabs{flex-wrap:wrap}
+  .comparison-table{font-size:.75rem}
+  .comparison-table td,.comparison-table th{padding:8px 6px}
+}
+
+/* Animations */
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{animation:fadeIn .3s ease forwards}
+
+/* Print */
+@media print{
+  body{background:#fff;color:#000}
+  .tabs,.btn,.form-group input,.form-group select{display:none}
+  .card{border:1px solid #ddd;break-inside:avoid}
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>AI Cost & <span>ROI Calculator</span></h1>
+    <p>Compare LLM API pricing, estimate costs at scale, and calculate return on investment</p>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="compare">Cost Comparison</div>
+    <div class="tab" data-tab="estimate">Usage Estimator</div>
+    <div class="tab" data-tab="roi">ROI Calculator</div>
+    <div class="tab" data-tab="scale">Scale Projections</div>
+  </div>
+
+  <!-- TAB 1: Cost Comparison -->
+  <div class="panel active" id="panel-compare">
+    <div class="card">
+      <h2>Compare Model Pricing</h2>
+      <p style="color:var(--text2);font-size:.85rem;margin-bottom:16px">Select models to compare side-by-side. Prices updated for 2025-2026 rates.</p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Category</label>
+          <select id="model-category" onchange="filterModels()">
+            <option value="all">All Models</option>
+            <option value="frontier">Frontier (GPT-4o, Claude Opus, Gemini Ultra)</option>
+            <option value="mid">Mid-tier (Claude Sonnet, GPT-4o-mini, Gemini Flash)</option>
+            <option value="budget">Budget (Haiku, GPT-4o-mini, Gemini Flash)</option>
+            <option value="open">Open Source (Llama, Mistral, DeepSeek)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Sort By</label>
+          <select id="sort-by" onchange="renderComparisonTable()">
+            <option value="input_cost">Input Cost (Low → High)</option>
+            <option value="output_cost">Output Cost (Low → High)</option>
+            <option value="blended">Blended Cost</option>
+            <option value="provider">Provider</option>
+          </select>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="comparison-table" id="comparison-table">
+          <thead>
+            <tr>
+              <th data-sort="provider">Provider</th>
+              <th data-sort="model">Model</th>
+              <th data-sort="input_cost">Input $/1M tok</th>
+              <th data-sort="output_cost">Output $/1M tok</th>
+              <th data-sort="context">Context Window</th>
+              <th data-sort="blended">Blended $/1M*</th>
+            </tr>
+          </thead>
+          <tbody id="comparison-body"></tbody>
+        </table>
+      </div>
+      <p style="color:var(--text3);font-size:.75rem;margin-top:12px">* Blended cost assumes 3:1 input-to-output token ratio. Click column headers to sort.</p>
+    </div>
+  </div>
+
+  <!-- TAB 2: Usage Estimator -->
+  <div class="panel" id="panel-estimate">
+    <div class="card">
+      <h2>Estimate Your Monthly Cost</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Requests per Day</label>
+          <input type="number" id="est-requests" value="1000" min="1">
+        </div>
+        <div class="form-group">
+          <label>Avg Input Tokens / Request</label>
+          <input type="number" id="est-input-tokens" value="500" min="1">
+          <span class="hint">~375 words = ~500 tokens</span>
+        </div>
+        <div class="form-group">
+          <label>Avg Output Tokens / Request</label>
+          <input type="number" id="est-output-tokens" value="200" min="1">
+          <span class="hint">~150 words = ~200 tokens</span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Use Case Template</label>
+          <select id="use-case" onchange="applyUseCase()">
+            <option value="custom">Custom</option>
+            <option value="chatbot">Customer Chatbot</option>
+            <option value="summarization">Document Summarization</option>
+            <option value="code-assist">Code Assistant</option>
+            <option value="content-gen">Content Generation</option>
+            <option value="data-extract">Data Extraction</option>
+            <option value="rag">RAG Application</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Days Active per Month</label>
+          <input type="number" id="est-days" value="30" min="1" max="31">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="calculateEstimate()">Calculate Costs</button>
+      <div id="estimate-results"></div>
+    </div>
+  </div>
+
+  <!-- TAB 3: ROI Calculator -->
+  <div class="panel" id="panel-roi">
+    <div class="card">
+      <h2>AI Implementation ROI</h2>
+      <p style="color:var(--text2);font-size:.85rem;margin-bottom:16px">Estimate the return on investment for adding AI to your workflow.</p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Tasks Automated per Month</label>
+          <input type="number" id="roi-tasks" value="500" min="1">
+        </div>
+        <div class="form-group">
+          <label>Avg Human Time per Task (min)</label>
+          <input type="number" id="roi-human-time" value="15" min="1">
+        </div>
+        <div class="form-group">
+          <label>Hourly Labor Cost ($)</label>
+          <input type="number" id="roi-labor" value="45" min="1">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>AI Model</label>
+          <select id="roi-model"></select>
+        </div>
+        <div class="form-group">
+          <label>Avg Tokens per Task (in+out)</label>
+          <input type="number" id="roi-tokens" value="1500" min="100">
+        </div>
+        <div class="form-group">
+          <label>AI Accuracy / Automation Rate (%)</label>
+          <input type="number" id="roi-accuracy" value="80" min="1" max="100">
+          <span class="hint">% of tasks fully automated without human review</span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Monthly Platform / Tooling Costs ($)</label>
+          <input type="number" id="roi-platform" value="200" min="0">
+          <span class="hint">Hosting, monitoring, integration costs</span>
+        </div>
+        <div class="form-group">
+          <label>One-time Setup Cost ($)</label>
+          <input type="number" id="roi-setup" value="5000" min="0">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="calculateROI()">Calculate ROI</button>
+      <div id="roi-results"></div>
+    </div>
+  </div>
+
+  <!-- TAB 4: Scale Projections -->
+  <div class="panel" id="panel-scale">
+    <div class="card">
+      <h2>Cost at Scale</h2>
+      <p style="color:var(--text2);font-size:.85rem;margin-bottom:16px">Project how costs grow as your usage scales. See breakpoints and optimization opportunities.</p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>AI Model</label>
+          <select id="scale-model"></select>
+        </div>
+        <div class="form-group">
+          <label>Current Daily Requests</label>
+          <input type="number" id="scale-current" value="1000" min="1">
+        </div>
+        <div class="form-group">
+          <label>Monthly Growth Rate (%)</label>
+          <input type="number" id="scale-growth" value="20" min="0" max="500">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Avg Tokens per Request (in+out)</label>
+          <input type="number" id="scale-tokens" value="700" min="1">
+        </div>
+        <div class="form-group">
+          <label>Input:Output Ratio</label>
+          <select id="scale-ratio">
+            <option value="3">3:1 (Typical chat)</option>
+            <option value="1">1:1 (Balanced)</option>
+            <option value="5">5:1 (Heavy context)</option>
+            <option value="0.5">1:2 (Generation-heavy)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Projection Period</label>
+          <select id="scale-period">
+            <option value="6">6 Months</option>
+            <option value="12" selected>12 Months</option>
+            <option value="24">24 Months</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="calculateScale()">Project Costs</button>
+      <div id="scale-results"></div>
+    </div>
+  </div>
+
+  <footer style="text-align:center;padding:30px 0;color:var(--text3);font-size:.8rem;border-top:1px solid var(--border);margin-top:30px">
+    Prices sourced from official provider pricing pages. Last updated Feb 2026. Estimates are approximations — verify with provider billing.
+  </footer>
+</div>
+
+<script>
+// =============================================
+// MODEL PRICING DATABASE (per 1M tokens)
+// =============================================
+const MODELS = [
+  // Anthropic
+  {provider:'Anthropic', model:'Claude Opus 4', input:15, output:75, context:'200K', category:'frontier', color:'#a29bfe'},
+  {provider:'Anthropic', model:'Claude Sonnet 4', input:3, output:15, context:'200K', category:'mid', color:'#6c5ce7'},
+  {provider:'Anthropic', model:'Claude Haiku 3.5', input:0.80, output:4, context:'200K', category:'budget', color:'#4a3fc7'},
+  // OpenAI
+  {provider:'OpenAI', model:'GPT-4o', input:2.50, output:10, context:'128K', category:'frontier', color:'#00b894'},
+  {provider:'OpenAI', model:'GPT-4o-mini', input:0.15, output:0.60, context:'128K', category:'budget', color:'#00a381'},
+  {provider:'OpenAI', model:'GPT-4.1', input:2, output:8, context:'1M', category:'frontier', color:'#00cc99'},
+  {provider:'OpenAI', model:'GPT-4.1-mini', input:0.40, output:1.60, context:'1M', category:'mid', color:'#009977'},
+  {provider:'OpenAI', model:'GPT-4.1-nano', input:0.10, output:0.40, context:'1M', category:'budget', color:'#007755'},
+  {provider:'OpenAI', model:'o3', input:10, output:40, context:'200K', category:'frontier', color:'#55ddaa'},
+  {provider:'OpenAI', model:'o3-mini', input:1.10, output:4.40, context:'200K', category:'mid', color:'#44cc99'},
+  {provider:'OpenAI', model:'o4-mini', input:1.10, output:4.40, context:'200K', category:'mid', color:'#33bb88'},
+  // Google
+  {provider:'Google', model:'Gemini 2.5 Pro', input:1.25, output:10, context:'1M', category:'frontier', color:'#fdcb6e'},
+  {provider:'Google', model:'Gemini 2.5 Flash', input:0.15, output:0.60, context:'1M', category:'budget', color:'#e0b050'},
+  {provider:'Google', model:'Gemini 2.0 Flash', input:0.10, output:0.40, context:'1M', category:'budget', color:'#c8a030'},
+  // Open source (hosted via common providers avg)
+  {provider:'Meta (hosted)', model:'Llama 3.3 70B', input:0.40, output:0.40, context:'128K', category:'open', color:'#74b9ff'},
+  {provider:'Meta (hosted)', model:'Llama 4 Maverick', input:0.50, output:0.50, context:'1M', category:'open', color:'#5aa0ee'},
+  {provider:'DeepSeek', model:'DeepSeek-V3', input:0.27, output:1.10, context:'128K', category:'open', color:'#ff6b6b'},
+  {provider:'DeepSeek', model:'DeepSeek-R1', input:0.55, output:2.19, context:'128K', category:'open', color:'#ee5555'},
+  {provider:'Mistral', model:'Mistral Large', input:2, output:6, context:'128K', category:'mid', color:'#fd79a8'},
+  {provider:'Mistral', model:'Mistral Small', input:0.10, output:0.30, context:'128K', category:'budget', color:'#e05090'},
+];
+
+let currentSort = {col:'input_cost', dir:'asc'};
+
+// =============================================
+// TAB SWITCHING
+// =============================================
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// =============================================
+// COMPARISON TABLE
+// =============================================
+function getBlended(m, ratio = 3) {
+  const totalTokens = ratio + 1;
+  return (m.input * ratio + m.output) / totalTokens;
+}
+
+function filterModels() {
+  renderComparisonTable();
+}
+
+function renderComparisonTable() {
+  const cat = document.getElementById('model-category').value;
+  let models = cat === 'all' ? [...MODELS] : MODELS.filter(m => m.category === cat);
+  const sortBy = document.getElementById('sort-by').value;
+
+  models.sort((a, b) => {
+    if (sortBy === 'input_cost') return a.input - b.input;
+    if (sortBy === 'output_cost') return a.output - b.output;
+    if (sortBy === 'blended') return getBlended(a) - getBlended(b);
+    if (sortBy === 'provider') return a.provider.localeCompare(b.provider);
+    return 0;
+  });
+
+  const cheapestInput = Math.min(...models.map(m => m.input));
+  const cheapestOutput = Math.min(...models.map(m => m.output));
+  const cheapestBlended = Math.min(...models.map(m => getBlended(m)));
+
+  const tbody = document.getElementById('comparison-body');
+  tbody.innerHTML = models.map(m => {
+    const blended = getBlended(m);
+    const inputClass = m.input === cheapestInput ? 'cheapest' : m.input > 10 ? 'expensive' : '';
+    const outputClass = m.output === cheapestOutput ? 'cheapest' : m.output > 50 ? 'expensive' : '';
+    const blendedClass = blended === cheapestBlended ? 'cheapest' : '';
+    return `<tr>
+      <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${m.color};margin-right:6px"></span>${m.provider}</td>
+      <td><strong>${m.model}</strong></td>
+      <td class="${inputClass}">$${m.input.toFixed(2)}</td>
+      <td class="${outputClass}">$${m.output.toFixed(2)}</td>
+      <td>${m.context}</td>
+      <td class="${blendedClass}">$${blended.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// Table header sort
+document.querySelectorAll('.comparison-table th').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    if (!key) return;
+    document.getElementById('sort-by').value = key === 'input_cost' ? 'input_cost' : key === 'output_cost' ? 'output_cost' : key === 'blended' ? 'blended' : 'provider';
+    renderComparisonTable();
+  });
+});
+
+// =============================================
+// USE CASE TEMPLATES
+// =============================================
+const USE_CASES = {
+  chatbot: {requests:2000, inputTokens:300, outputTokens:150, days:30},
+  summarization: {requests:500, inputTokens:2000, outputTokens:400, days:22},
+  'code-assist': {requests:800, inputTokens:1000, outputTokens:500, days:22},
+  'content-gen': {requests:200, inputTokens:500, outputTokens:1500, days:22},
+  'data-extract': {requests:3000, inputTokens:800, outputTokens:100, days:30},
+  rag: {requests:1500, inputTokens:1500, outputTokens:300, days:30},
+};
+
+function applyUseCase() {
+  const uc = document.getElementById('use-case').value;
+  if (uc === 'custom') return;
+  const t = USE_CASES[uc];
+  document.getElementById('est-requests').value = t.requests;
+  document.getElementById('est-input-tokens').value = t.inputTokens;
+  document.getElementById('est-output-tokens').value = t.outputTokens;
+  document.getElementById('est-days').value = t.days;
+}
+
+// =============================================
+// ESTIMATE CALCULATOR
+// =============================================
+function calculateEstimate() {
+  const requests = +document.getElementById('est-requests').value;
+  const inputTokens = +document.getElementById('est-input-tokens').value;
+  const outputTokens = +document.getElementById('est-output-tokens').value;
+  const days = +document.getElementById('est-days').value;
+
+  const totalInputTokens = requests * inputTokens * days;
+  const totalOutputTokens = requests * outputTokens * days;
+
+  const results = MODELS.map(m => {
+    const inputCost = (totalInputTokens / 1e6) * m.input;
+    const outputCost = (totalOutputTokens / 1e6) * m.output;
+    return {...m, totalCost: inputCost + outputCost, inputCost, outputCost};
+  }).sort((a, b) => a.totalCost - b.totalCost);
+
+  const maxCost = results[results.length - 1].totalCost;
+  const container = document.getElementById('estimate-results');
+
+  container.innerHTML = `
+    <div style="margin-top:20px;padding:16px;background:var(--surface2);border-radius:var(--radius-sm);font-size:.85rem;color:var(--text2)">
+      <strong style="color:var(--text)">Usage Summary:</strong>
+      ${fmt(requests * days)} total requests/mo •
+      ${fmtTokens(totalInputTokens)} input tokens •
+      ${fmtTokens(totalOutputTokens)} output tokens
+    </div>
+    <div class="chart-container" style="margin-top:20px">
+      <div style="font-size:.85rem;color:var(--text2);margin-bottom:12px;font-weight:600">Monthly Cost by Model</div>
+      <div class="bar-chart">
+        ${results.map(r => {
+          const h = maxCost > 0 ? Math.max((r.totalCost / maxCost) * 200, 2) : 2;
+          return `<div class="bar-group">
+            <div class="bar" style="height:${h}px;background:${r.color}">
+              <div class="tooltip">${r.model}: $${r.totalCost.toFixed(2)}/mo</div>
+            </div>
+            <div class="bar-label">${r.model.split(' ').pop()}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="results-grid">
+      ${results.slice(0, 6).map((r, i) => `
+        <div class="result-card fade-in ${i === 0 ? 'best' : ''}" style="animation-delay:${i * .05}s">
+          <div class="provider-name">${r.provider}</div>
+          <div class="model-name">${r.model}</div>
+          <div class="cost">$${r.totalCost < 1 ? r.totalCost.toFixed(3) : r.totalCost.toFixed(2)}</div>
+          <div class="cost-period">per month</div>
+          <div class="details">
+            <div class="row"><span>Input cost</span><span>$${r.inputCost.toFixed(3)}</span></div>
+            <div class="row"><span>Output cost</span><span>$${r.outputCost.toFixed(3)}</span></div>
+            <div class="row"><span>Per request</span><span>$${(r.totalCost / (requests * days)).toFixed(6)}</span></div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <details style="margin-top:16px">
+      <summary style="cursor:pointer;color:var(--accent2);font-size:.85rem">View all ${results.length} models →</summary>
+      <table class="comparison-table" style="margin-top:8px">
+        <thead><tr><th>Provider</th><th>Model</th><th>Monthly Cost</th><th>Per Request</th></tr></thead>
+        <tbody>${results.map(r => `<tr>
+          <td>${r.provider}</td><td>${r.model}</td>
+          <td>$${r.totalCost.toFixed(2)}</td>
+          <td>$${(r.totalCost / (requests * days)).toFixed(6)}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </details>
+  `;
+}
+
+// =============================================
+// ROI CALCULATOR
+// =============================================
+function calculateROI() {
+  const tasks = +document.getElementById('roi-tasks').value;
+  const humanMinutes = +document.getElementById('roi-human-time').value;
+  const laborRate = +document.getElementById('roi-labor').value;
+  const modelKey = document.getElementById('roi-model').value;
+  const tokensPerTask = +document.getElementById('roi-tokens').value;
+  const accuracy = +document.getElementById('roi-accuracy').value / 100;
+  const platformCost = +document.getElementById('roi-platform').value;
+  const setupCost = +document.getElementById('roi-setup').value;
+
+  const model = MODELS.find(m => m.model === modelKey) || MODELS[0];
+  const ratio = 3; // 3:1 input:output default
+  const inputTokens = tokensPerTask * (ratio / (ratio + 1));
+  const outputTokens = tokensPerTask * (1 / (ratio + 1));
+
+  const aiCostPerTask = (inputTokens / 1e6) * model.input + (outputTokens / 1e6) * model.output;
+  const monthlyAICost = aiCostPerTask * tasks;
+  const totalMonthlyCost = monthlyAICost + platformCost;
+
+  const automatedTasks = tasks * accuracy;
+  const manualTasks = tasks - automatedTasks;
+  const humanHoursSaved = (automatedTasks * humanMinutes) / 60;
+  const laborSaved = humanHoursSaved * laborRate;
+  const residualLabor = (manualTasks * humanMinutes / 60) * laborRate;
+
+  const monthlySavings = laborSaved - totalMonthlyCost;
+  const monthlyROI = totalMonthlyCost > 0 ? (monthlySavings / totalMonthlyCost) * 100 : 0;
+  const paybackMonths = monthlySavings > 0 ? setupCost / monthlySavings : Infinity;
+  const annualSavings = monthlySavings * 12 - setupCost;
+
+  const container = document.getElementById('roi-results');
+  container.innerHTML = `
+    <div class="roi-summary fade-in">
+      <div class="roi-metric">
+        <div class="label">Monthly AI Cost</div>
+        <div class="value neutral">$${totalMonthlyCost.toFixed(0)}</div>
+        <div class="sub">API: $${monthlyAICost.toFixed(2)} + Platform: $${platformCost}</div>
+      </div>
+      <div class="roi-metric">
+        <div class="label">Monthly Labor Saved</div>
+        <div class="value positive">$${laborSaved.toFixed(0)}</div>
+        <div class="sub">${humanHoursSaved.toFixed(0)} hours × $${laborRate}/hr</div>
+      </div>
+      <div class="roi-metric">
+        <div class="label">Net Monthly Savings</div>
+        <div class="value ${monthlySavings >= 0 ? 'positive' : 'negative'}">$${monthlySavings.toFixed(0)}</div>
+        <div class="sub">${monthlyROI.toFixed(0)}% monthly ROI</div>
+      </div>
+      <div class="roi-metric">
+        <div class="label">Payback Period</div>
+        <div class="value ${paybackMonths <= 3 ? 'positive' : paybackMonths <= 12 ? 'neutral' : 'negative'}">${paybackMonths === Infinity ? '∞' : paybackMonths.toFixed(1) + ' mo'}</div>
+        <div class="sub">Setup cost: $${fmt(setupCost)}</div>
+      </div>
+      <div class="roi-metric">
+        <div class="label">First-Year Net</div>
+        <div class="value ${annualSavings >= 0 ? 'positive' : 'negative'}">$${fmt(Math.round(annualSavings))}</div>
+        <div class="sub">After setup costs</div>
+      </div>
+      <div class="roi-metric">
+        <div class="label">Cost per AI Task</div>
+        <div class="value neutral">$${aiCostPerTask.toFixed(4)}</div>
+        <div class="sub">vs $${((humanMinutes / 60) * laborRate).toFixed(2)} human cost</div>
+      </div>
+    </div>
+    <div class="card fade-in" style="margin-top:16px">
+      <h3>Breakdown</h3>
+      <div style="font-size:.85rem;color:var(--text2);line-height:2">
+        <div>• <strong>${fmt(tasks)}</strong> monthly tasks → <strong>${fmt(Math.round(automatedTasks))}</strong> automated (${(accuracy*100).toFixed(0)}%), <strong>${fmt(Math.round(manualTasks))}</strong> still manual</div>
+        <div>• Human time saved: <strong>${humanHoursSaved.toFixed(0)} hours/mo</strong> (${(humanHoursSaved / (tasks * humanMinutes / 60) * 100).toFixed(0)}% reduction)</div>
+        <div>• AI cost per automated task: <strong>$${aiCostPerTask.toFixed(4)}</strong> vs human cost of <strong>$${((humanMinutes / 60) * laborRate).toFixed(2)}</strong> — <strong>${((1 - aiCostPerTask / ((humanMinutes / 60) * laborRate)) * 100).toFixed(0)}%</strong> cheaper</div>
+        <div>• Using <strong>${model.model}</strong> at $${model.input}/M input, $${model.output}/M output</div>
+      </div>
+    </div>
+  `;
+}
+
+// =============================================
+// SCALE PROJECTIONS
+// =============================================
+function calculateScale() {
+  const modelKey = document.getElementById('scale-model').value;
+  const currentDaily = +document.getElementById('scale-current').value;
+  const growthRate = +document.getElementById('scale-growth').value / 100;
+  const tokensPerReq = +document.getElementById('scale-tokens').value;
+  const ratio = +document.getElementById('scale-ratio').value;
+  const months = +document.getElementById('scale-period').value;
+
+  const model = MODELS.find(m => m.model === modelKey) || MODELS[0];
+  const inputFrac = ratio / (ratio + 1);
+  const outputFrac = 1 / (ratio + 1);
+
+  const projections = [];
+  let totalCost = 0;
+  for (let i = 0; i < months; i++) {
+    const dailyReqs = currentDaily * Math.pow(1 + growthRate, i);
+    const monthlyReqs = dailyReqs * 30;
+    const monthlyInputTokens = monthlyReqs * tokensPerReq * inputFrac;
+    const monthlyOutputTokens = monthlyReqs * tokensPerReq * outputFrac;
+    const cost = (monthlyInputTokens / 1e6) * model.input + (monthlyOutputTokens / 1e6) * model.output;
+    totalCost += cost;
+    projections.push({month: i + 1, dailyReqs, monthlyReqs, cost, totalCost});
+  }
+
+  const maxCost = Math.max(...projections.map(p => p.cost));
+  const container = document.getElementById('scale-results');
+
+  const thresholds = [1000, 5000, 10000, 50000];
+  const milestones = thresholds.map(t => {
+    const m = projections.find(p => p.cost >= t);
+    return m ? `<div class="scale-card"><h4>$${fmt(t)}/mo reached</h4><div class="projection">Month ${m.month}</div><div class="context">${fmt(Math.round(m.dailyReqs))} daily requests</div></div>` : '';
+  }).filter(Boolean).join('');
+
+  container.innerHTML = `
+    <div class="scale-grid fade-in">
+      <div class="scale-card">
+        <h4>Month 1 Cost</h4>
+        <div class="projection" style="color:var(--green)">$${projections[0].cost.toFixed(2)}</div>
+        <div class="context">${fmt(Math.round(projections[0].dailyReqs))} req/day</div>
+      </div>
+      <div class="scale-card">
+        <h4>Month ${months} Cost</h4>
+        <div class="projection" style="color:var(--orange)">$${projections[months-1].cost.toFixed(2)}</div>
+        <div class="context">${fmt(Math.round(projections[months-1].dailyReqs))} req/day</div>
+      </div>
+      <div class="scale-card">
+        <h4>Total ${months}-Month Spend</h4>
+        <div class="projection" style="color:var(--accent2)">$${fmt(Math.round(totalCost))}</div>
+        <div class="context">Cumulative cost</div>
+      </div>
+      <div class="scale-card">
+        <h4>Growth Factor</h4>
+        <div class="projection">${(projections[months-1].dailyReqs / currentDaily).toFixed(1)}×</div>
+        <div class="context">Request volume increase</div>
+      </div>
+    </div>
+    ${milestones ? `<div class="scale-grid fade-in" style="margin-top:16px">${milestones}</div>` : ''}
+    <div class="chart-container" style="margin-top:20px">
+      <div style="font-size:.85rem;color:var(--text2);margin-bottom:12px;font-weight:600">Monthly Cost Projection — ${model.model}</div>
+      <div class="bar-chart">
+        ${projections.map((p, i) => {
+          const h = maxCost > 0 ? Math.max((p.cost / maxCost) * 200, 2) : 2;
+          const barColor = p.cost < 1000 ? 'var(--green)' : p.cost < 5000 ? 'var(--orange)' : 'var(--red)';
+          return `<div class="bar-group">
+            <div class="bar" style="height:${h}px;background:${barColor}">
+              <div class="tooltip">Mo ${p.month}: $${p.cost.toFixed(2)} (${fmt(Math.round(p.dailyReqs))} req/day)</div>
+            </div>
+            ${(i % Math.ceil(months / 12) === 0 || i === months - 1) ? `<div class="bar-label">M${p.month}</div>` : '<div class="bar-label"></div>'}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="card fade-in" style="margin-top:16px">
+      <h3>Optimization Tips at Scale</h3>
+      <div style="font-size:.85rem;color:var(--text2);line-height:2">
+        ${projections[months-1].cost > 5000 ? '<div>• <strong>Consider prompt caching</strong> — providers like Anthropic and OpenAI offer cached prompt discounts up to 90% off</div>' : ''}
+        ${projections[months-1].cost > 2000 ? '<div>• <strong>Batch API</strong> — OpenAI and Anthropic offer 50% off for async batch processing</div>' : ''}
+        ${projections[months-1].cost > 1000 ? '<div>• <strong>Evaluate smaller models</strong> — route simple queries to budget models and reserve frontier models for complex tasks</div>' : ''}
+        <div>• <strong>Token optimization</strong> — trim prompts, use structured outputs, and cache repeated context</div>
+        <div>• <strong>Request deduplication</strong> — cache identical requests to avoid redundant API calls</div>
+        ${projections[months-1].dailyReqs > 50000 ? '<div>• <strong>Self-hosting</strong> — at your scale, consider hosting open-weight models (Llama, Mistral) on dedicated GPU infrastructure</div>' : ''}
+      </div>
+    </div>
+  `;
+}
+
+// =============================================
+// HELPERS
+// =============================================
+function fmt(n) {
+  return n.toLocaleString('en-US');
+}
+
+function fmtTokens(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return n.toString();
+}
+
+// Populate model selects
+function populateModelSelects() {
+  const selects = ['roi-model', 'scale-model'];
+  selects.forEach(id => {
+    const el = document.getElementById(id);
+    MODELS.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.model;
+      opt.textContent = `${m.provider} — ${m.model}`;
+      el.appendChild(opt);
+    });
+  });
+}
+
+// Init
+populateModelSelects();
+renderComparisonTable();
+</script>
+</body>
+</html>
