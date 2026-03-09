@@ -429,7 +429,9 @@ function App() {
   };
  
   const saveKey = () => {
-    localStorage.setItem('anthropic_key', apiKey);
+    const cleanKey = apiKey.replace(/[^\x20-\x7E]/g, '').trim();
+    setApiKey(cleanKey);
+    localStorage.setItem('anthropic_key', cleanKey);
     setKeySubmitted(true);
   };
  
