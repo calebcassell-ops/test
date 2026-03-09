@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Capricious King</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; }
+  #root { width: 100vw; height: 100vh; }
+ 
+  @keyframes poof {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(2.5); opacity: 0.5; }
+    100% { transform: scale(4); opacity: 0; }
+  }
+  @keyframes confetti-fall {
+    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+  }
+  @keyframes wobble {
+    0%, 100% { transform: translate(0, 0); }
+    25% { transform: translate(-3px, 2px); }
+    50% { transform: translate(2px, -2px); }
+    75% { transform: translate(-2px, -1px); }
+  }
+  @keyframes sparkle {
+    0%, 100% { opacity: 0; transform: scale(0); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes win-expand {
+    0% { transform: scale(1); }
+    100% { transform: scale(8); }
+  }
+  @keyframes float-up {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-60px); }
+  }
+ 
+  input:focus { outline: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef, useEffect, useCallback, useMemo } = React;
+ 
+/* ─── helpers ─── */
+function lerp(a, b, t) { return a + (b - a) * Math.clamp01(t); }
+Math.clamp01 = (v) => Math.max(0, Math.min(1, v));
+function hsl(h, s, l) { return `hsl(${h}, ${s}%, ${l}%)`; }
+ 
+/* ─── Confetti ─── */
+function Confetti() {
+  const pieces = useMemo(() =>
+    Array.from({ length: 60 }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      delay: Math.random() * 2,
+      duration: 2 + Math.random() * 2,
+      color: ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff8ff8','#ffab76'][i % 6],
+      size: 6 + Math.random() * 8,
+      rotation: Math.random() * 360,
+    }))
+  , []);
+  return (
+    <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:100 }}>
+      {pieces.map(p => (
+        <div key={p.id} style={{
+          position:'absolute', top: -20, left: `${p.left}%`,
+          width: p.size, height: p.size * 0.6,
+          backgroundColor: p.color,
+          borderRadius: 2,
+          transform: `rotate(${p.rotation}deg)`,
+          animation: `confetti-fall ${p.duration}s ease-in ${p.delay}s both`,
+        }} />
+      ))}
+    </div>
+  );
+}
+ 
+/* ─── Poof ─── */
+function Poof({ x, y }) {
+  const dots = useMemo(() =>
+    Array.from({ length: 12 }, (_, i) => ({
+      id: i,
+      angle: (i / 12) * Math.PI * 2,
+      dist: 20 + Math.random() * 30,
+      size: 4 + Math.random() * 6,
+      color: ['#aaa','#ccc','#888','#bbb'][i % 4],
+    }))
+  , []);
+  return (
+    <div style={{ position:'absolute', left: x, top: y, pointerEvents:'none', zIndex:50 }}>
+      {dots.map(d => (
+        <div key={d.id} style={{
+          position:'absolute',
+          width: d.size, height: d.size, borderRadius: '50%',
+          backgroundColor: d.color,
+          left: Math.cos(d.angle) * d.dist - d.size / 2,
+          top: Math.sin(d.angle) * d.dist - d.size / 2,
+          animation: `poof 0.6s ease-out forwards`,
+        }} />
+      ))}
+    </div>
+  );
+}
+ 
+/* ─── King Face SVG ─── */
+function KingFace({ radius, score, isThinking, isWinning }) {
+  // score: 0-1, determines expression
+  // 8 expressions: 4 happy (>0.5), 4 unhappy (<0.5)
+  const s = isThinking ? 0.5 : score;
+  const r = Math.max(radius, 12);
+  const scale = r / 150; // relative to base 150
+ 
+  // Eye positions
+  const eyeOffsetX = 30 * scale;
+  const eyeOffsetY = -15 * scale;
+  const eyeRadius = Math.max(5 * scale, 2);
+ 
+  // Crown
+  const crownW = 40 * scale;
+  const crownH = 25 * scale;
+  const crownY = -(r + 5);
+ 
+  let leftEye, rightEye, mouth, extras = [];
+ 
+  if (isThinking) {
+    // Thinking: eyes looking up, pursed mouth
+    leftEye = <g>
+      <circle cx={-eyeOffsetX} cy={eyeOffsetY} r={eyeRadius} fill="white" />
+      <circle cx={-eyeOffsetX} cy={eyeOffsetY - eyeRadius * 0.4} r={eyeRadius * 0.5} fill="#333" />
+    </g>;
+    rightEye = <g>
+      <circle cx={eyeOffsetX} cy={eyeOffsetY} r={eyeRadius} fill="white" />
+      <circle cx={eyeOffsetX} cy={eyeOffsetY - eyeRadius * 0.4} r={eyeRadius * 0.5} fill="#333" />
+    </g>;
+    mouth = <ellipse cx={0} cy={18 * scale} rx={5 * scale} ry={4 * scale} fill="#333" />;
+  } else if (s >= 0.875) {
+    // Ecstatic: eyes squeezed shut (happy arcs), huge smile, blush
+    leftEye = <path d={`M${-eyeOffsetX - eyeRadius},${eyeOffsetY} Q${-eyeOffsetX},${eyeOffsetY - eyeRadius * 1.5} ${-eyeOffsetX + eyeRadius},${eyeOffsetY}`} stroke="#333" strokeWidth={Math.max(2 * scale, 1)} fill="none" strokeLinecap="round" />;
+    rightEye = <path d={`M${eyeOffsetX - eyeRadius},${eyeOffsetY} Q${eyeOffsetX},${eyeOffsetY - eyeRadius * 1.5} ${eyeOffsetX + eyeRadius},${eyeOffsetY}`} stroke="#333" strokeWidth={Math.max(2 * scale, 1)} fill="none" strokeLinecap="round" />;
+    mouth = <path d={`M${-22 * scale},${12 * scale} Q0,${42 * scale} ${22 * scale},${12 * scale}`} stroke="#333" strokeWidth={Math.max(2 * scale, 1)} fill="#ff6b6b" />;
+    // Blush marks
+    extras.push(<circle key="bl" cx={-35 * scale} cy={10 * scale} r={8 * scale} fill="rgba(255,100,100,0.35)" />);
+    extras.push(<circle key="br" cx={35 * scale} cy={10 * scale} r={8 * scale} fill="rgba(255,100,100,0.35)" />);
+  } else if (s >= 0.75) {
+    // Big toothy beam
+    leftEye = <circle cx={-eyeOffsetX} cy={eyeOffsetY} r={eyeRadius} fill="#333" />;
+    rightEye = <circle cx={eyeOffsetX} cy={eyeOffsetY} r={eyeRadius} fill="#333" />;
+    mouth = <g>
+      <path d={`M${-18 * scale},${12 * scale} Q0,${36 * scale} ${18 * scale},${12 * scale}`} stroke="#333" strokeWidth={Math.max(2 * scale, 1)} fill="white" />
+      <line x1={-6 * scale} y1={18 * scale} x2={-6 * scale} y2={24 * scale} stroke="#333" strokeWidth={Math.max(1 * scale, 0.5)} />
+      <line x1={6 * scale} y1={18 * scale} x2={6 * scale} y2={24 * scale} stroke="#333" strokeWidth={Math.max(1 * scale, 0.5)} />
+    </g>;
+  } else if (s >= 0.625) {
+    // Open-mouth grin
+    leftEye = <circle cx={-eyeOffsetX} cy={eyeOffsetY} r={eyeRadius} fill="#333" />;
+    rightEye = <circle cx={eyeOffsetX} cy={eyeOffsetY} r={eyeRadius} fill="#333" />;
+    mouth = <path d={`M${-14 * scale},${14 * scale} Q0,${30 * scale} ${14 * scale},${14 * scale}`} stroke="#333" strokeWidth={Math.max(2 * scale, 1)} fill="#c0392b" />;
+  } else if (s >= 0.5) {
+    // Content smile
+    leftEye = <circle cx={-eyeOffsetX} cy={eyeOffsetY} r={eyeRadius} fill="#333" />;
+    rightEye = <circle cx={eyeOffsetX} cy={eyeOffsetY} r={eyeRadius} fill="#333" />;
+    mouth = <path d={`M${-12 * scale},${16 * scale} Q0,${26 * scale} ${12 * scale},${16 * scale}`} stroke="#333" strokeWidth={Math.max(2 * scale, 1)} fill="none" strokeLinecap="round" />;
+  } else if (s >= 0.375) {
+    // Mild frown
+    leftEye = <circle cx={-eyeOffsetX} cy={eyeOffsetY} r={eyeRadius} fill="#333" />;
+    rightEye = <circle cx={eyeOffsetX} cy={eyeOffsetY} r={eyeRadius} fill="#333" />;
+    mouth = <path d={`M${-10 * scale},${22 * scale} Q0,${14 * scale} ${10 * scale},${22 * scale}`} stroke="#333" strokeWidth={Math.max(2 * scale, 1)} fill="none" strokeLinecap="round" />;
+  } else if (s >= 0.25) {
+    // Annoyed scowl — eyebrows angled, deeper frown
+    leftEye = <g>
+      <circle cx={-eyeOffsetX} cy={eyeOffsetY} r={eyeRadius} fill="#333" />
+      <line x1={-eyeOffsetX - eyeRadius * 1.2} y1={eyeOffsetY - eyeRadius * 1.8} x2={-eyeOffsetX + eyeRadius * 1.2} y2={eyeOffsetY - eyeRadius * 1.2} stroke="#333" strokeWidth={Math.max(2 * scale, 1)} strokeLinecap="round" />
+    </g>;
+    rightEye = <g>
+      <circle cx={eyeOffsetX} cy={eyeOffsetY} r={eyeRadius} fill="#333" />
+      <line x1={eyeOffsetX - eyeRadius * 1.2} y1={eyeOffsetY - eyeRadius * 1.2} x2={eyeOffsetX + eyeRadius * 1.2} y2={eyeOffsetY - eyeRadius * 1.8} stroke="#333" strokeWidth={Math.max(2 * scale, 1)} strokeLinecap="round" />
+    </g>;
+    mouth = <path d={`M${-12 * scale},${24 * scale} Q0,${12 * scale} ${12 * scale},${24 * scale}`} stroke="#333" strokeWidth={Math.max(2.5 * scale, 1)} fill="none" strokeLinecap="round" />;
+  } else if (s >= 0.125) {
+    // Furious — heavy brows, jagged mouth
+    leftEye = <g>
+      <circle cx={-eyeOffsetX} cy={eyeOffsetY} r={eyeRadius * 0.8} fill="#333" />
+      <line x1={-eyeOffsetX - eyeRadius * 1.5} y1={eyeOffsetY - eyeRadius * 2.2} x2={-eyeOffsetX + eyeRadius * 1.5} y2={eyeOffsetY - eyeRadius * 1} stroke="#333" strokeWidth={Math.max(2.5 * scale, 1)} strokeLinecap="round" />
+    </g>;
+    rightEye = <g>
+      <circle cx={eyeOffsetX} cy={eyeOffsetY} r={eyeRadius * 0.8} fill="#333" />
+      <line x1={eyeOffsetX - eyeRadius * 1.5} y1={eyeOffsetY - eyeRadius * 1} x2={eyeOffsetX + eyeRadius * 1.5} y2={eyeOffsetY - eyeRadius * 2.2} stroke="#333" strokeWidth={Math.max(2.5 * scale, 1)} strokeLinecap="round" />
+    </g>;
+    const zigzag = `M${-16 * scale},${18 * scale} L${-8 * scale},${24 * scale} L0,${16 * scale} L${8 * scale},${24 * scale} L${16 * scale},${18 * scale}`;
+    mouth = <path d={zigzag} stroke="#333" strokeWidth={Math.max(2 * scale, 1)} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
+  } else {
+    // Despairing — tiny sad eyes, wobbly
+    leftEye = <g>
+      <circle cx={-eyeOffsetX} cy={eyeOffsetY} r={eyeRadius * 0.5} fill="#333" />
+      <path d={`M${-eyeOffsetX - eyeRadius},${eyeOffsetY + eyeRadius * 0.8} Q${-eyeOffsetX},${eyeOffsetY + eyeRadius * 1.8} ${-eyeOffsetX + eyeRadius},${eyeOffsetY + eyeRadius * 0.8}`} stroke="#5599dd" strokeWidth={Math.max(1 * scale, 0.5)} fill="none" />
+    </g>;
+    rightEye = <g>
+      <circle cx={eyeOffsetX} cy={eyeOffsetY} r={eyeRadius * 0.5} fill="#333" />
+      <path d={`M${eyeOffsetX - eyeRadius},${eyeOffsetY + eyeRadius * 0.8} Q${eyeOffsetX},${eyeOffsetY + eyeRadius * 1.8} ${eyeOffsetX + eyeRadius},${eyeOffsetY + eyeRadius * 0.8}`} stroke="#5599dd" strokeWidth={Math.max(1 * scale, 0.5)} fill="none" />
+    </g>;
+    mouth = <path d={`M${-8 * scale},${22 * scale} Q0,${14 * scale} ${8 * scale},${22 * scale}`} stroke="#333" strokeWidth={Math.max(2 * scale, 1)} fill="none" strokeLinecap="round" />;
+  }
+ 
+  return (
+    <g>
+      {/* Crown */}
+      <polygon
+        points={`${-crownW},${crownY} ${-crownW * 0.6},${crownY - crownH} ${-crownW * 0.2},${crownY} ${0},${crownY - crownH * 1.2} ${crownW * 0.2},${crownY} ${crownW * 0.6},${crownY - crownH} ${crownW},${crownY}`}
+        fill="#ffd700"
+        stroke="#daa520"
+        strokeWidth={Math.max(1.5 * scale, 0.5)}
+      />
+      {/* Crown jewels */}
+      <circle cx={0} cy={crownY - crownH * 0.5} r={Math.max(2.5 * scale, 1)} fill="#e74c3c" />
+      <circle cx={-crownW * 0.6} cy={crownY - crownH * 0.45} r={Math.max(2 * scale, 0.8)} fill="#3498db" />
+      <circle cx={crownW * 0.6} cy={crownY - crownH * 0.45} r={Math.max(2 * scale, 0.8)} fill="#2ecc71" />
+      {/* Face */}
+      {leftEye}
+      {rightEye}
+      {mouth}
+      {extras}
+    </g>
+  );
+}
+ 
+/* ─── Score color ─── */
+function scoreColor(score) {
+  if (score >= 0.8) return '#2ecc71';
+  if (score >= 0.6) return '#82e0aa';
+  if (score >= 0.4) return '#f9e79f';
+  if (score >= 0.2) return '#f0b27a';
+  return '#e74c3c';
+}
+ 
+/* ─── Background color from mood ─── */
+function bgFromScore(score) {
+  if (score === null) return '#f5e6d3'; // neutral warm
+  const h = lerp(220, 40, score); // cool blue → warm orange
+  const s = lerp(30, 50, Math.abs(score - 0.5) * 2);
+  const l = lerp(25, 90, 0.3 + score * 0.5);
+  return hsl(h, s, l);
+}
+ 
+/* ─── Main App ─── */
+function App() {
+  const [apiKey, setApiKey] = useState(localStorage.getItem('anthropic_key') || '');
+  const [keySubmitted, setKeySubmitted] = useState(!!localStorage.getItem('anthropic_key'));
+  const [gameState, setGameState] = useState('idle'); // idle | playing | won | lost
+  const [secretWord, setSecretWord] = useState('');
+  const [guesses, setGuesses] = useState([]);
+  const [currentGuess, setCurrentGuess] = useState('');
+  const [radius, setRadius] = useState(150);
+  const [displayRadius, setDisplayRadius] = useState(150);
+  const [lastScore, setLastScore] = useState(null);
+  const [bestScore, setBestScore] = useState(0);
+  const [isThinking, setIsThinking] = useState(false);
+  const [showPoof, setShowPoof] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [isWinning, setIsWinning] = useState(false);
+  const [error, setError] = useState('');
+  const inputRef = useRef(null);
+  const animRef = useRef(null);
+  const guessListRef = useRef(null);
+ 
+  // Smooth radius animation
+  useEffect(() => {
+    const target = radius;
+    let frame;
+    const animate = () => {
+      setDisplayRadius(prev => {
+        const diff = target - prev;
+        if (Math.abs(diff) < 0.5) return target;
+        frame = requestAnimationFrame(animate);
+        return prev + diff * 0.08;
+      });
+    };
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [radius]);
+ 
+  // Auto-scroll guess list
+  useEffect(() => {
+    if (guessListRef.current) {
+      guessListRef.current.scrollTop = guessListRef.current.scrollHeight;
+    }
+  }, [guesses]);
+ 
+  // Focus input
+  useEffect(() => {
+    if (gameState === 'playing' && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [gameState, isThinking]);
+ 
+  const callAPI = useCallback(async (messages, maxTokens = 200) => {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: maxTokens,
+        messages,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`API error ${res.status}: ${err}`);
+    }
+    const data = await res.json();
+    return data.content[0].text;
+  }, [apiKey]);
+ 
+  const startGame = useCallback(async () => {
+    setError('');
+    setIsThinking(true);
+    setGameState('playing');
+    setGuesses([]);
+    setCurrentGuess('');
+    setRadius(150);
+    setDisplayRadius(150);
+    setLastScore(null);
+    setBestScore(0);
+    setShowPoof(false);
+    setShowConfetti(false);
+    setIsWinning(false);
+    try {
+      const word = await callAPI([{
+        role: 'user',
+        content: 'Pick a single common English noun that would be fun to guess in a word game. Respond with ONLY the word, lowercase, no punctuation.'
+      }], 20);
+      setSecretWord(word.trim().toLowerCase());
+      setIsThinking(false);
+    } catch (e) {
+      setError(e.message);
+      setIsThinking(false);
+      setGameState('idle');
+    }
+  }, [callAPI]);
+ 
+  const submitGuess = useCallback(async () => {
+    const guess = currentGuess.trim().toLowerCase();
+    if (!guess || isThinking || gameState !== 'playing') return;
+    setCurrentGuess('');
+    setIsThinking(true);
+    setError('');
+    try {
+      const raw = await callAPI([{
+        role: 'user',
+        content: `You are the judge in a word-guessing game. The secret word is "${secretWord}". The player guessed "${guess}". Rate the semantic similarity from 0.0 to 1.0 (1.0 = exact match, 0.0 = completely unrelated). Also write a 1-sentence in-character reaction as a pompous, capricious king. Respond ONLY with JSON: {"score": number, "flavor": "string"}`
+      }], 200);
+ 
+      let parsed;
+      try {
+        // Extract JSON from response (handle markdown code blocks)
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch {
+        throw new Error('Failed to parse API response: ' + raw);
+      }
+ 
+      const score = Math.max(0, Math.min(1, parsed.score));
+      const newGuess = { word: guess, score, flavor: parsed.flavor };
+ 
+      setGuesses(prev => [...prev, newGuess]);
+      setLastScore(score);
+ 
+      // Exact match = win
+      if (score >= 0.99 || guess === secretWord) {
+        setIsWinning(true);
+        setShowConfetti(true);
+        setRadius(prev => Math.min(prev + 100, 600));
+        setTimeout(() => setGameState('won'), 1500);
+        setIsThinking(false);
+        return;
+      }
+ 
+      // Progressive difficulty: compare against best score
+      setBestScore(prev => {
+        const currentBest = prev;
+        const threshold = currentBest > 0 ? currentBest : 0.5;
+ 
+        if (score > threshold) {
+          // Growth proportional to how much above threshold
+          const growthFactor = (score - threshold) / (1 - threshold);
+          const growth = growthFactor * 60 + 5;
+          setRadius(r => Math.min(r + growth, 500));
+        } else {
+          // Shrink proportional to how much below threshold
+          const shrinkFactor = (threshold - score) / threshold;
+          const shrink = shrinkFactor * 50 + 5;
+          setRadius(r => {
+            const newR = r - shrink;
+            if (newR < 10) {
+              // Lose!
+              setTimeout(() => {
+                setShowPoof(true);
+                setTimeout(() => setGameState('lost'), 800);
+              }, 400);
+              return 5;
+            }
+            return newR;
+          });
+        }
+ 
+        return Math.max(prev, score);
+      });
+ 
+      setIsThinking(false);
+    } catch (e) {
+      setError(e.message);
+      setIsThinking(false);
+    }
+  }, [currentGuess, isThinking, gameState, secretWord, callAPI]);
+ 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') submitGuess();
+  };
+ 
+  const saveKey = () => {
+    localStorage.setItem('anthropic_key', apiKey);
+    setKeySubmitted(true);
+  };
+ 
+  const currentMood = lastScore !== null ? lastScore : 0.5;
+  const bgColor = bgFromScore(isThinking ? null : currentMood);
+ 
+  // API key screen
+  if (!keySubmitted) {
+    return (
+      <div style={{
+        width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', background: '#f5e6d3',
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+      }}>
+        <h1 style={{ fontSize: 36, marginBottom: 8, color: '#8b4513' }}>The Capricious King</h1>
+        <p style={{ color: '#a0522d', marginBottom: 24, fontSize: 14 }}>Enter your Anthropic API key to begin</p>
+        <input
+          type="password"
+          value={apiKey}
+          onChange={e => setApiKey(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && apiKey && saveKey()}
+          placeholder="sk-ant-..."
+          style={{
+            padding: '12px 20px', width: 340, borderRadius: 12,
+            border: '2px solid #daa520', fontSize: 16, marginBottom: 16,
+            background: 'white',
+          }}
+        />
+        <button onClick={saveKey} disabled={!apiKey} style={{
+          padding: '10px 32px', borderRadius: 10, border: 'none',
+          background: apiKey ? '#daa520' : '#ccc', color: 'white',
+          fontSize: 16, cursor: apiKey ? 'pointer' : 'default', fontWeight: 600,
+        }}>
+          Enter the Throne Room
+        </button>
+        <p style={{ color: '#999', fontSize: 11, marginTop: 16 }}>Key is stored in localStorage only</p>
+      </div>
+    );
+  }
+ 
+  return (
+    <div style={{
+      width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center', position: 'relative',
+      background: bgColor, transition: 'background 0.8s ease',
+      fontFamily: "'Segoe UI', system-ui, sans-serif", overflow: 'hidden',
+    }}>
+      {showConfetti && <Confetti />}
+ 
+      {/* New Game button */}
+      <button onClick={startGame} style={{
+        position: 'absolute', top: 16, right: 16, padding: '8px 16px',
+        borderRadius: 8, border: '2px solid rgba(0,0,0,0.15)', background: 'rgba(255,255,255,0.7)',
+        cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#555', zIndex: 20,
+        backdropFilter: 'blur(4px)',
+      }}>
+        New Game
+      </button>
+ 
+      {/* Change key button */}
+      <button onClick={() => { localStorage.removeItem('anthropic_key'); setKeySubmitted(false); setGameState('idle'); }} style={{
+        position: 'absolute', top: 16, left: 16, padding: '8px 12px',
+        borderRadius: 8, border: '2px solid rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.5)',
+        cursor: 'pointer', fontSize: 11, color: '#888', zIndex: 20,
+      }}>
+        Change Key
+      </button>
+ 
+      {/* Guess counter */}
+      {gameState === 'playing' && (
+        <div style={{
+          position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)',
+          fontSize: 13, color: 'rgba(0,0,0,0.35)', fontWeight: 600, zIndex: 20,
+        }}>
+          Guess #{guesses.length + 1}
+          {bestScore > 0 && <span style={{ marginLeft: 12, color: 'rgba(0,0,0,0.25)' }}>Best: {(bestScore * 100).toFixed(0)}%</span>}
+        </div>
+      )}
+ 
+      {/* Idle / start screen */}
+      {gameState === 'idle' && (
+        <div style={{ textAlign: 'center', zIndex: 10 }}>
+          <svg width="200" height="220" viewBox="-100 -120 200 240">
+            <circle cx="0" cy="0" r="80" fill="#ffd700" stroke="#daa520" strokeWidth="3" />
+            <KingFace radius={80} score={0.6} isThinking={false} />
+          </svg>
+          <h1 style={{ fontSize: 32, color: '#8b4513', marginTop: 8 }}>The Capricious King</h1>
+          <p style={{ color: '#a0522d', marginBottom: 24, maxWidth: 400, lineHeight: 1.5, fontSize: 14 }}>
+            The king is thinking of a word. Guess it before he shrinks away!
+          </p>
+          <button onClick={startGame} style={{
+            padding: '14px 40px', borderRadius: 12, border: 'none',
+            background: '#daa520', color: 'white', fontSize: 18, cursor: 'pointer',
+            fontWeight: 700, boxShadow: '0 4px 15px rgba(218,165,32,0.4)',
+          }}>
+            Begin
+          </button>
+        </div>
+      )}
+ 
+      {/* The King */}
+      {(gameState === 'playing' || gameState === 'won') && !showPoof && (
+        <div style={{
+          position: 'absolute',
+          top: '42%', left: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 5,
+          animation: isWinning ? 'win-expand 1.5s ease-in-out forwards' : (lastScore !== null && lastScore < 0.125 ? 'wobble 0.3s infinite' : 'none'),
+        }}>
+          <svg
+            width={displayRadius * 2 + 80}
+            height={displayRadius * 2 + 100}
+            viewBox={`${-(displayRadius + 40)} ${-(displayRadius + 60)} ${displayRadius * 2 + 80} ${displayRadius * 2 + 100}`}
+            style={{ overflow: 'visible' }}
+          >
+            {/* King body */}
+            <circle
+              cx="0" cy="0" r={displayRadius}
+              fill={isThinking ? '#f0d060' : hsl(lerp(350, 50, currentMood), lerp(60, 80, currentMood), lerp(55, 75, currentMood))}
+              stroke={isThinking ? '#c8a830' : hsl(lerp(350, 40, currentMood), 50, lerp(40, 55, currentMood))}
+              strokeWidth={Math.max(3 * (displayRadius / 150), 1)}
+              style={{ transition: 'fill 0.5s ease, stroke 0.5s ease' }}
+            />
+            <KingFace
+              radius={displayRadius}
+              score={currentMood}
+              isThinking={isThinking}
+              isWinning={isWinning}
+            />
+          </svg>
+ 
+          {/* Thinking dots */}
+          {isThinking && (
+            <div style={{
+              position: 'absolute', bottom: -30, left: '50%', transform: 'translateX(-50%)',
+              display: 'flex', gap: 6,
+            }}>
+              {[0, 1, 2].map(i => (
+                <div key={i} style={{
+                  width: 8, height: 8, borderRadius: '50%', background: '#daa520',
+                  animation: `sparkle 1s ease-in-out ${i * 0.2}s infinite`,
+                }} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+ 
+      {/* Poof on death */}
+      {showPoof && (
+        <Poof x={window.innerWidth / 2} y={window.innerHeight * 0.42} />
+      )}
+ 
+      {/* Win overlay */}
+      {gameState === 'won' && (
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', zIndex: 60,
+          background: 'rgba(255,215,0,0.15)', backdropFilter: 'blur(2px)',
+        }}>
+          <div style={{
+            background: 'white', borderRadius: 20, padding: '40px 50px',
+            textAlign: 'center', boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 8 }}>&#128081;</div>
+            <h2 style={{ fontSize: 28, color: '#8b4513', marginBottom: 8 }}>You Found the Word!</h2>
+            <p style={{ fontSize: 22, color: '#daa520', fontWeight: 700, marginBottom: 4 }}>"{secretWord}"</p>
+            <p style={{ color: '#888', marginBottom: 24 }}>in {guesses.length} guess{guesses.length !== 1 ? 'es' : ''}</p>
+            <button onClick={startGame} style={{
+              padding: '12px 36px', borderRadius: 10, border: 'none',
+              background: '#daa520', color: 'white', fontSize: 16,
+              cursor: 'pointer', fontWeight: 600,
+            }}>
+              Play Again
+            </button>
+          </div>
+        </div>
+      )}
+ 
+      {/* Lose overlay */}
+      {gameState === 'lost' && (
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', zIndex: 60,
+          background: 'rgba(0,0,0,0.2)', backdropFilter: 'blur(2px)',
+        }}>
+          <div style={{
+            background: 'white', borderRadius: 20, padding: '40px 50px',
+            textAlign: 'center', boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 8 }}>&#128148;</div>
+            <h2 style={{ fontSize: 28, color: '#555', marginBottom: 8 }}>The King Has Vanished</h2>
+            <p style={{ color: '#888', marginBottom: 4 }}>The word was:</p>
+            <p style={{ fontSize: 22, color: '#e74c3c', fontWeight: 700, marginBottom: 24 }}>"{secretWord}"</p>
+            <button onClick={startGame} style={{
+              padding: '12px 36px', borderRadius: 10, border: 'none',
+              background: '#8b4513', color: 'white', fontSize: 16,
+              cursor: 'pointer', fontWeight: 600,
+            }}>
+              Try Again
+            </button>
+          </div>
+        </div>
+      )}
+ 
+      {/* Input + guess history */}
+      {gameState === 'playing' && (
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          padding: '0 16px 24px', zIndex: 10,
+        }}>
+          {/* Guess history */}
+          {guesses.length > 0 && (
+            <div ref={guessListRef} style={{
+              maxHeight: 140, overflowY: 'auto', marginBottom: 12,
+              width: '100%', maxWidth: 400,
+              display: 'flex', flexDirection: 'column', gap: 4,
+              scrollbarWidth: 'thin',
+            }}>
+              {guesses.map((g, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '6px 14px', borderRadius: 8,
+                  background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(4px)',
+                  fontSize: 14,
+                }}>
+                  <span style={{ color: '#666', marginRight: 8, fontSize: 11, minWidth: 20 }}>#{i + 1}</span>
+                  <span style={{ flex: 1, fontWeight: 500, color: '#333' }}>{g.word}</span>
+                  <span style={{
+                    fontWeight: 700, color: scoreColor(g.score),
+                    marginLeft: 12, fontSize: 13,
+                  }}>
+                    {(g.score * 100).toFixed(0)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+ 
+          {/* Input */}
+          <div style={{
+            display: 'flex', gap: 8, width: '100%', maxWidth: 400,
+          }}>
+            <input
+              ref={inputRef}
+              value={currentGuess}
+              onChange={e => setCurrentGuess(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isThinking}
+              placeholder={isThinking ? 'The king ponders...' : 'Type your guess...'}
+              style={{
+                flex: 1, padding: '14px 20px', borderRadius: 14,
+                border: '2px solid rgba(0,0,0,0.1)', fontSize: 16,
+                background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(4px)',
+                color: '#333',
+              }}
+            />
+            <button
+              onClick={submitGuess}
+              disabled={isThinking || !currentGuess.trim()}
+              style={{
+                padding: '14px 20px', borderRadius: 14, border: 'none',
+                background: (isThinking || !currentGuess.trim()) ? '#ccc' : '#daa520',
+                color: 'white', fontSize: 16, cursor: (isThinking || !currentGuess.trim()) ? 'default' : 'pointer',
+                fontWeight: 600, minWidth: 60,
+              }}
+            >
+              &#x279C;
+            </button>
+          </div>
+        </div>
+      )}
+ 
+      {/* Error */}
+      {error && (
+        <div style={{
+          position: 'absolute', top: 60, left: '50%', transform: 'translateX(-50%)',
+          background: '#fee', border: '1px solid #fcc', borderRadius: 10,
+          padding: '10px 20px', color: '#c00', fontSize: 13, zIndex: 30,
+          maxWidth: 500, textAlign: 'center',
+        }}>
+          {error}
+          <button onClick={() => setError('')} style={{
+            marginLeft: 12, background: 'none', border: 'none',
+            color: '#c00', cursor: 'pointer', fontWeight: 700,
+          }}>&#x2715;</button>
+        </div>
+      )}
+    </div>
+  );
+}
+ 
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
+ 
