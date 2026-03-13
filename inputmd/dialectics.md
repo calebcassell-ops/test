@@ -1,0 +1,1 @@
+We had talked about a version of the dialectics that included artifacts, forking, 
