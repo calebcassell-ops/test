@@ -1,3 +1,7 @@
+---
+editors: raykyri
+---
+
 *Is there a better way to assess the capabilities of models than testing their performance on question-and-answer benchmarks?*
 
 Good question — and one with real depth beneath the surface. Let me probe before we set the monks loose, because "are benchmarks the right way to evaluate models?" has several very different versions depending on what's actually bothering you.
