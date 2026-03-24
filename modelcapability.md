@@ -1,0 +1,1 @@
+Is there a better way to assess the capabilities of models than testing their performance on question-and-answer benchmarks?
