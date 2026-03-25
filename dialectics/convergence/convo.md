@@ -1,5 +1,8 @@
 
 
+ ---
+editors: raykyri
+---
   ✻ Voice mode is now available · /voice to enable
 
 ❯ /hegelian-dialectic                                                           
