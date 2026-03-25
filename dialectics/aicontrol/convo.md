@@ -1,3 +1,6 @@
+---
+editors: raykyri
+---
 *How much higher/lower is the risk of AI takeover by 2123 if we reach AI able to automate all cognitive labour by 2040 compared to by 2065?*
 
 The reference docs aren't separate files — the full skill is in SKILL.md which I've already loaded. Let me proceed with Phase 1.
