@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Chord Player</title>
+<script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+<style>
+  :root {
+    --bg: #15171c;
+    --panel: #1e2129;
+    --panel-2: #262a34;
+    --text: #e7e9ee;
+    --muted: #9aa0ac;
+    --accent: #7aa2ff;
+    --accent-2: #6be3a7;
+    --danger: #ef6b6b;
+    --border: #2e323d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.4;
+  }
+  header {
+    padding: 24px 32px 8px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 { margin: 0; font-size: 22px; font-weight: 600; }
+  header .status { color: var(--muted); font-size: 13px; }
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 32px 64px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  section h2 {
+    margin: 0 0 14px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  section.full { grid-column: 1 / -1; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input[type="text"], input[type="number"] {
+    width: 100%;
+    padding: 9px 11px;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  input[type="text"]:focus, input[type="number"]:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+  .row > * { flex: 1; min-width: 0; }
+  .row .grow-2 { flex: 2; }
+  .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  button {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  button:hover { background: #323746; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: #101216; border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { background: #8fb3ff; }
+  button.go { background: var(--accent-2); color: #0d1612; border-color: var(--accent-2); font-weight: 600; }
+  button.go:hover { background: #85edba; }
+  button.danger { color: var(--danger); }
+  button.danger:hover { background: #3a2528; }
+  button.icon { padding: 6px 9px; font-size: 12px; }
+  .error { color: var(--danger); font-size: 13px; margin-top: 8px; min-height: 1em; }
+  .empty { color: var(--muted); font-size: 13px; font-style: italic; padding: 8px 0; }
+  ul.list { list-style: none; padding: 0; margin: 0; }
+  ul.list li {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  ul.list li .name { font-weight: 600; min-width: 120px; }
+  ul.list li .notes {
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    flex: 1;
+    min-width: 0;
+  }
+  ul.list li .controls { display: flex; gap: 6px; margin-left: auto; }
+  .sequence-controls {
+    display: flex;
+    gap: 12px;
+    align-items: end;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .sequence-controls .field { flex: 0 0 auto; width: 120px; }
+  .sequence-controls .spacer { flex: 1; }
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+  }
+  .step .idx {
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    width: 24px;
+  }
+  .step .step-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .step .beats { width: 80px; }
+  .step .beats input { padding: 5px 8px; font-size: 13px; }
+  .step.playing { border-color: var(--accent-2); box-shadow: 0 0 0 1px var(--accent-2); }
+  .chord-picker {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .chord-picker select {
+    flex: 1;
+    min-width: 150px;
+    padding: 8px 10px;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .help {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 6px;
+  }
+  code.kbd {
+    background: var(--panel-2);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+    border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Chord Player</h1>
+  <div class="status" id="status">Loading piano samples…</div>
+</header>
+<main>
+  <section>
+    <h2>Build a Chord</h2>
+    <div class="row">
+      <div class="grow-2">
+        <label for="chord-name">Name</label>
+        <input type="text" id="chord-name" placeholder="e.g. C major" />
+      </div>
+    </div>
+    <div class="row" style="margin-top: 10px;">
+      <div>
+        <label for="chord-notes">Notes (bottom to top)</label>
+        <input type="text" id="chord-notes" placeholder="C4, E4, G4" />
+      </div>
+    </div>
+    <div class="help">
+      Use scientific pitch notation. Sharps <code class="kbd">#</code> and flats <code class="kbd">b</code> both work. Separate with commas or spaces. Example: <code class="kbd">C4, Eb4, G4, Bb4</code>
+    </div>
+    <div class="actions">
+      <button id="preview-btn" class="primary">Preview</button>
+      <button id="save-btn">Save Chord</button>
+      <button id="clear-form-btn">Clear</button>
+    </div>
+    <div class="error" id="chord-error"></div>
+  </section>
+
+  <section>
+    <h2>Saved Chords</h2>
+    <ul class="list" id="chord-list"></ul>
+    <div class="empty" id="chord-empty">No chords saved yet.</div>
+  </section>
+
+  <section class="full">
+    <h2>Sequencer</h2>
+    <div class="sequence-controls">
+      <div class="field">
+        <label for="bpm">BPM</label>
+        <input type="number" id="bpm" min="20" max="300" value="100" />
+      </div>
+      <div class="field">
+        <label for="default-beats">Default beats</label>
+        <input type="number" id="default-beats" min="0.25" max="32" step="0.25" value="4" />
+      </div>
+      <div class="spacer"></div>
+      <button id="play-seq-btn" class="go">Play</button>
+      <button id="stop-seq-btn">Stop</button>
+      <button id="clear-seq-btn" class="danger">Clear</button>
+    </div>
+
+    <div id="sequence-steps"></div>
+    <div class="empty" id="sequence-empty">Sequence is empty. Add a chord below or use the <em>Add</em> button on a saved chord.</div>
+
+    <div class="chord-picker">
+      <select id="chord-picker-select"></select>
+      <button id="add-step-btn">Add to sequence</button>
+    </div>
+
+    <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border);">
+      <label for="seq-name" style="margin-bottom: 6px;">Save current sequence</label>
+      <div class="row">
+        <input type="text" id="seq-name" placeholder="e.g. I–V–vi–IV in C" />
+        <button id="save-seq-btn" style="flex: 0 0 auto;">Save Sequence</button>
+      </div>
+    </div>
+
+    <div style="margin-top: 18px;">
+      <label>Saved sequences</label>
+      <ul class="list" id="sequence-list"></ul>
+      <div class="empty" id="sequence-list-empty">No sequences saved yet.</div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  const STORAGE_KEY = "chord-player.v1";
+
+  const state = {
+    chords: [],         // { id, name, notes: string[] }
+    sequences: [],      // { id, name, steps: [{ chordId, beats }] }
+    currentSeq: [],     // [{ chordId, beats }]
+    nextId: 1,
+  };
+
+  const els = {
+    status: document.getElementById("status"),
+    chordName: document.getElementById("chord-name"),
+    chordNotes: document.getElementById("chord-notes"),
+    previewBtn: document.getElementById("preview-btn"),
+    saveBtn: document.getElementById("save-btn"),
+    clearFormBtn: document.getElementById("clear-form-btn"),
+    chordError: document.getElementById("chord-error"),
+    chordList: document.getElementById("chord-list"),
+    chordEmpty: document.getElementById("chord-empty"),
+    bpm: document.getElementById("bpm"),
+    defaultBeats: document.getElementById("default-beats"),
+    playSeqBtn: document.getElementById("play-seq-btn"),
+    stopSeqBtn: document.getElementById("stop-seq-btn"),
+    clearSeqBtn: document.getElementById("clear-seq-btn"),
+    sequenceSteps: document.getElementById("sequence-steps"),
+    sequenceEmpty: document.getElementById("sequence-empty"),
+    chordPickerSelect: document.getElementById("chord-picker-select"),
+    addStepBtn: document.getElementById("add-step-btn"),
+    seqName: document.getElementById("seq-name"),
+    saveSeqBtn: document.getElementById("save-seq-btn"),
+    sequenceList: document.getElementById("sequence-list"),
+    sequenceListEmpty: document.getElementById("sequence-list-empty"),
+  };
+
+  // ---------- Persistence ----------
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.chords)) state.chords = data.chords;
+      if (Array.isArray(data.sequences)) state.sequences = data.sequences;
+      if (typeof data.nextId === "number") state.nextId = data.nextId;
+    } catch (e) {
+      console.warn("Failed to load state:", e);
+    }
+  }
+  function save() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      chords: state.chords,
+      sequences: state.sequences,
+      nextId: state.nextId,
+    }));
+  }
+  const newId = () => String(state.nextId++);
+
+  // ---------- Note parsing ----------
+  const NOTE_RE = /^([A-Ga-g])([#b]?)(-?\d+)$/;
+
+  function parseNotes(input) {
+    const tokens = input.split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
+    if (tokens.length === 0) throw new Error("Enter at least one note.");
+    const notes = [];
+    for (const tok of tokens) {
+      const m = tok.match(NOTE_RE);
+      if (!m) throw new Error(`"${tok}" is not a valid note (e.g. C4, F#3, Bb5).`);
+      const letter = m[1].toUpperCase();
+      const acc = m[2];
+      const octave = m[3];
+      notes.push(`${letter}${acc}${octave}`);
+    }
+    return notes;
+  }
+
+  // ---------- Audio ----------
+  let sampler = null;
+  let samplerReady = false;
+  let audioStarted = false;
+  const seqTimers = [];
+  const stepHighlightTimers = [];
+
+  function initSampler() {
+    sampler = new Tone.Sampler({
+      urls: {
+        A1: "A1.mp3", A2: "A2.mp3", A3: "A3.mp3", A4: "A4.mp3", A5: "A5.mp3", A6: "A6.mp3", A7: "A7.mp3",
+        C1: "C1.mp3", C2: "C2.mp3", C3: "C3.mp3", C4: "C4.mp3", C5: "C5.mp3", C6: "C6.mp3", C7: "C7.mp3",
+        "D#1": "Ds1.mp3", "D#2": "Ds2.mp3", "D#3": "Ds3.mp3", "D#4": "Ds4.mp3", "D#5": "Ds5.mp3", "D#6": "Ds6.mp3", "D#7": "Ds7.mp3",
+        "F#1": "Fs1.mp3", "F#2": "Fs2.mp3", "F#3": "Fs3.mp3", "F#4": "Fs4.mp3", "F#5": "Fs5.mp3", "F#6": "Fs6.mp3", "F#7": "Fs7.mp3",
+      },
+      release: 1.2,
+      baseUrl: "https://tonejs.github.io/audio/salamander/",
+      onload: () => {
+        samplerReady = true;
+        els.status.textContent = "Piano ready. Click Preview or Play to begin.";
+      },
+    }).toDestination();
+  }
+
+  async function ensureAudio() {
+    if (!audioStarted) {
+      await Tone.start();
+      audioStarted = true;
+    }
+    if (!samplerReady) {
+      els.status.textContent = "Still loading piano samples…";
+      await Tone.loaded();
+      samplerReady = true;
+      els.status.textContent = "Piano ready.";
+    }
+  }
+
+  function playChordNow(notes, durationSec = 1.5) {
+    if (!samplerReady) return;
+    sampler.triggerAttackRelease(notes, durationSec);
+  }
+
+  function stopAllPlayback() {
+    while (seqTimers.length) clearTimeout(seqTimers.pop());
+    while (stepHighlightTimers.length) clearTimeout(stepHighlightTimers.pop());
+    if (sampler) sampler.releaseAll();
+    document.querySelectorAll(".step.playing").forEach(el => el.classList.remove("playing"));
+  }
+
+  async function playSteps(steps) {
+    if (steps.length === 0) return;
+    await ensureAudio();
+    stopAllPlayback();
+
+    const bpm = Math.max(20, Math.min(300, Number(els.bpm.value) || 100));
+    const secondsPerBeat = 60 / bpm;
+    let cumulativeMs = 0;
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      const chord = state.chords.find(c => c.id === step.chordId);
+      if (!chord) continue;
+      const beats = Math.max(0.25, Number(step.beats) || 1);
+      const durationSec = beats * secondsPerBeat;
+      const startMs = cumulativeMs;
+
+      seqTimers.push(setTimeout(() => {
+        sampler.triggerAttackRelease(chord.notes, durationSec);
+      }, startMs));
+
+      // highlight (only for the live sequence UI)
+      const stepEl = els.sequenceSteps.querySelector(`[data-step-idx="${i}"]`);
+      if (stepEl) {
+        stepHighlightTimers.push(setTimeout(() => stepEl.classList.add("playing"), startMs));
+        stepHighlightTimers.push(setTimeout(() => stepEl.classList.remove("playing"), startMs + durationSec * 1000));
+      }
+
+      cumulativeMs += durationSec * 1000;
+    }
+  }
+
+  // ---------- Rendering ----------
+  function renderChords() {
+    els.chordList.innerHTML = "";
+    els.chordEmpty.style.display = state.chords.length === 0 ? "block" : "none";
+
+    for (const chord of state.chords) {
+      const li = document.createElement("li");
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = chord.name;
+      const notes = document.createElement("span");
+      notes.className = "notes";
+      notes.textContent = chord.notes.join(", ");
+      const controls = document.createElement("div");
+      controls.className = "controls";
+
+      const playBtn = document.createElement("button");
+      playBtn.className = "icon";
+      playBtn.textContent = "▶ Play";
+      playBtn.addEventListener("click", async () => {
+        await ensureAudio();
+        playChordNow(chord.notes, 2);
+      });
+
+      const addBtn = document.createElement("button");
+      addBtn.className = "icon";
+      addBtn.textContent = "+ Add";
+      addBtn.addEventListener("click", () => addStep(chord.id));
+
+      const editBtn = document.createElement("button");
+      editBtn.className = "icon";
+      editBtn.textContent = "Edit";
+      editBtn.addEventListener("click", () => loadChordIntoForm(chord));
+
+      const delBtn = document.createElement("button");
+      delBtn.className = "icon danger";
+      delBtn.textContent = "Delete";
+      delBtn.addEventListener("click", () => {
+        if (!confirm(`Delete "${chord.name}"?`)) return;
+        state.chords = state.chords.filter(c => c.id !== chord.id);
+        state.currentSeq = state.currentSeq.filter(s => s.chordId !== chord.id);
+        for (const seq of state.sequences) {
+          seq.steps = seq.steps.filter(s => s.chordId !== chord.id);
+        }
+        save();
+        renderAll();
+      });
+
+      controls.append(playBtn, addBtn, editBtn, delBtn);
+      li.append(name, notes, controls);
+      els.chordList.appendChild(li);
+    }
+  }
+
+  function renderChordPicker() {
+    els.chordPickerSelect.innerHTML = "";
+    if (state.chords.length === 0) {
+      const opt = document.createElement("option");
+      opt.textContent = "— save a chord first —";
+      opt.disabled = true;
+      opt.selected = true;
+      els.chordPickerSelect.appendChild(opt);
+      els.addStepBtn.disabled = true;
+      return;
+    }
+    els.addStepBtn.disabled = false;
+    for (const chord of state.chords) {
+      const opt = document.createElement("option");
+      opt.value = chord.id;
+      opt.textContent = `${chord.name}  (${chord.notes.join(", ")})`;
+      els.chordPickerSelect.appendChild(opt);
+    }
+  }
+
+  function renderSequence() {
+    els.sequenceSteps.innerHTML = "";
+    els.sequenceEmpty.style.display = state.currentSeq.length === 0 ? "block" : "none";
+
+    state.currentSeq.forEach((step, i) => {
+      const chord = state.chords.find(c => c.id === step.chordId);
+      const row = document.createElement("div");
+      row.className = "step";
+      row.dataset.stepIdx = String(i);
+
+      const idx = document.createElement("span");
+      idx.className = "idx";
+      idx.textContent = String(i + 1).padStart(2, "0");
+
+      const name = document.createElement("span");
+      name.className = "step-name";
+      name.textContent = chord ? `${chord.name} — ${chord.notes.join(", ")}` : "(deleted chord)";
+
+      const beatsWrap = document.createElement("div");
+      beatsWrap.className = "beats";
+      const beatsInput = document.createElement("input");
+      beatsInput.type = "number";
+      beatsInput.min = "0.25";
+      beatsInput.step = "0.25";
+      beatsInput.value = String(step.beats);
+      beatsInput.addEventListener("change", () => {
+        const v = Math.max(0.25, Number(beatsInput.value) || 1);
+        step.beats = v;
+        beatsInput.value = String(v);
+      });
+      beatsWrap.appendChild(beatsInput);
+
+      const upBtn = document.createElement("button");
+      upBtn.className = "icon";
+      upBtn.textContent = "↑";
+      upBtn.disabled = i === 0;
+      upBtn.addEventListener("click", () => {
+        [state.currentSeq[i - 1], state.currentSeq[i]] = [state.currentSeq[i], state.currentSeq[i - 1]];
+        renderSequence();
+      });
+
+      const downBtn = document.createElement("button");
+      downBtn.className = "icon";
+      downBtn.textContent = "↓";
+      downBtn.disabled = i === state.currentSeq.length - 1;
+      downBtn.addEventListener("click", () => {
+        [state.currentSeq[i + 1], state.currentSeq[i]] = [state.currentSeq[i], state.currentSeq[i + 1]];
+        renderSequence();
+      });
+
+      const playOneBtn = document.createElement("button");
+      playOneBtn.className = "icon";
+      playOneBtn.textContent = "▶";
+      playOneBtn.title = "Preview this step";
+      playOneBtn.addEventListener("click", async () => {
+        if (!chord) return;
+        await ensureAudio();
+        const bpm = Math.max(20, Math.min(300, Number(els.bpm.value) || 100));
+        playChordNow(chord.notes, step.beats * 60 / bpm);
+      });
+
+      const removeBtn = document.createElement("button");
+      removeBtn.className = "icon danger";
+      removeBtn.textContent = "✕";
+      removeBtn.addEventListener("click", () => {
+        state.currentSeq.splice(i, 1);
+        renderSequence();
+      });
+
+      row.append(idx, name, beatsWrap, upBtn, downBtn, playOneBtn, removeBtn);
+      els.sequenceSteps.appendChild(row);
+    });
+  }
+
+  function renderSavedSequences() {
+    els.sequenceList.innerHTML = "";
+    els.sequenceListEmpty.style.display = state.sequences.length === 0 ? "block" : "none";
+
+    for (const seq of state.sequences) {
+      const li = document.createElement("li");
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = seq.name;
+      const summary = document.createElement("span");
+      summary.className = "notes";
+      summary.textContent = seq.steps.map(s => {
+        const c = state.chords.find(cc => cc.id === s.chordId);
+        return `${c ? c.name : "?"}×${s.beats}`;
+      }).join("  →  ");
+
+      const controls = document.createElement("div");
+      controls.className = "controls";
+
+      const playBtn = document.createElement("button");
+      playBtn.className = "icon";
+      playBtn.textContent = "▶ Play";
+      playBtn.addEventListener("click", () => playSteps(seq.steps));
+
+      const loadBtn = document.createElement("button");
+      loadBtn.className = "icon";
+      loadBtn.textContent = "Load";
+      loadBtn.title = "Load into editor";
+      loadBtn.addEventListener("click", () => {
+        state.currentSeq = seq.steps.map(s => ({ ...s }));
+        els.seqName.value = seq.name;
+        renderSequence();
+      });
+
+      const delBtn = document.createElement("button");
+      delBtn.className = "icon danger";
+      delBtn.textContent = "Delete";
+      delBtn.addEventListener("click", () => {
+        if (!confirm(`Delete sequence "${seq.name}"?`)) return;
+        state.sequences = state.sequences.filter(s => s.id !== seq.id);
+        save();
+        renderSavedSequences();
+      });
+
+      controls.append(playBtn, loadBtn, delBtn);
+      li.append(name, summary, controls);
+      els.sequenceList.appendChild(li);
+    }
+  }
+
+  function renderAll() {
+    renderChords();
+    renderChordPicker();
+    renderSequence();
+    renderSavedSequences();
+  }
+
+  // ---------- Actions ----------
+  function loadChordIntoForm(chord) {
+    els.chordName.value = chord.name;
+    els.chordNotes.value = chord.notes.join(", ");
+    els.chordName.dataset.editingId = chord.id;
+    els.chordError.textContent = "";
+    els.chordName.focus();
+  }
+
+  function clearForm() {
+    els.chordName.value = "";
+    els.chordNotes.value = "";
+    delete els.chordName.dataset.editingId;
+    els.chordError.textContent = "";
+  }
+
+  function getFormChord() {
+    const name = els.chordName.value.trim();
+    const notes = parseNotes(els.chordNotes.value);
+    return { name: name || `Chord ${state.chords.length + 1}`, notes };
+  }
+
+  function addStep(chordId) {
+    const defaultBeats = Math.max(0.25, Number(els.defaultBeats.value) || 4);
+    state.currentSeq.push({ chordId, beats: defaultBeats });
+    renderSequence();
+  }
+
+  // ---------- Event wiring ----------
+  els.previewBtn.addEventListener("click", async () => {
+    els.chordError.textContent = "";
+    try {
+      const { notes } = getFormChord();
+      await ensureAudio();
+      playChordNow(notes, 2);
+    } catch (e) {
+      els.chordError.textContent = e.message;
+    }
+  });
+
+  els.saveBtn.addEventListener("click", () => {
+    els.chordError.textContent = "";
+    try {
+      const { name, notes } = getFormChord();
+      const editingId = els.chordName.dataset.editingId;
+      if (editingId) {
+        const existing = state.chords.find(c => c.id === editingId);
+        if (existing) {
+          existing.name = name;
+          existing.notes = notes;
+        }
+      } else {
+        state.chords.push({ id: newId(), name, notes });
+      }
+      save();
+      clearForm();
+      renderAll();
+    } catch (e) {
+      els.chordError.textContent = e.message;
+    }
+  });
+
+  els.clearFormBtn.addEventListener("click", clearForm);
+
+  els.addStepBtn.addEventListener("click", () => {
+    const id = els.chordPickerSelect.value;
+    if (!id) return;
+    addStep(id);
+  });
+
+  els.playSeqBtn.addEventListener("click", () => playSteps(state.currentSeq));
+  els.stopSeqBtn.addEventListener("click", stopAllPlayback);
+  els.clearSeqBtn.addEventListener("click", () => {
+    if (state.currentSeq.length === 0) return;
+    if (!confirm("Clear the current sequence?")) return;
+    state.currentSeq = [];
+    renderSequence();
+  });
+
+  els.saveSeqBtn.addEventListener("click", () => {
+    const name = els.seqName.value.trim();
+    if (!name) {
+      alert("Give the sequence a name first.");
+      return;
+    }
+    if (state.currentSeq.length === 0) {
+      alert("Add some chords to the sequence before saving.");
+      return;
+    }
+    state.sequences.push({
+      id: newId(),
+      name,
+      steps: state.currentSeq.map(s => ({ ...s })),
+    });
+    save();
+    els.seqName.value = "";
+    renderSavedSequences();
+  });
+
+  // ---------- Boot ----------
+  load();
+  initSampler();
+  renderAll();
+})();
+</script>
+</body>
+</html>
