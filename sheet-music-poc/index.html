@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sheet Music POC — mm. 20–31</title>
+<script src="https://cdn.jsdelivr.net/npm/abcjs@6.4.4/dist/abcjs-basic-min.js"></script>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    max-width: 1200px;
+    margin: 2em auto;
+    padding: 0 1.5em;
+    color: #222;
+    line-height: 1.5;
+  }
+  h1 { margin-bottom: 0.2em; }
+  .subtitle { color: #666; margin-top: 0; }
+  .warning {
+    background: #fff8e1;
+    border-left: 4px solid #f4b400;
+    padding: 0.75em 1em;
+    margin: 1em 0;
+    border-radius: 4px;
+    font-size: 0.95em;
+  }
+  .controls {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    margin: 1em 0;
+    flex-wrap: wrap;
+  }
+  button {
+    padding: 0.55em 1.1em;
+    font-size: 1em;
+    cursor: pointer;
+    border: 1px solid #888;
+    background: #fafafa;
+    border-radius: 4px;
+  }
+  button:hover { background: #eee; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #paper {
+    background: white;
+    padding: 0.5em;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow-x: auto;
+  }
+  textarea {
+    width: 100%;
+    height: 320px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    padding: 0.75em;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+  .status {
+    font-size: 0.9em;
+    color: #555;
+    margin-left: 0.5em;
+  }
+  .abcjs-cursor { stroke: #d33; stroke-width: 2; }
+  .abcjs-note_selected ellipse,
+  .abcjs-note_selected path { fill: #d33 !important; }
+  details { margin: 1em 0; }
+  summary { cursor: pointer; font-weight: 600; padding: 0.4em 0; }
+  label { display: inline-flex; align-items: center; gap: 0.4em; font-size: 0.9em; }
+</style>
+</head>
+<body>
+
+<h1>Sheet Music POC</h1>
+<p class="subtitle">Image → ABC notation → rendered + interactive playback (abcjs).</p>
+
+<div class="warning">
+  <strong>This is a rough transcription.</strong> Pitches, especially in the piano part, are approximations from a small screenshot. Edit the ABC source below and click <em>Re-render</em> to fix anything wrong, then play again.
+</div>
+
+<div class="controls">
+  <button id="play">▶ Play</button>
+  <button id="pause">⏸ Pause</button>
+  <button id="stop">■ Stop</button>
+  <label><input type="range" id="tempo" min="40" max="160" value="96"> <span id="tempoLabel">96 bpm</span></label>
+  <span class="status" id="status">Loading synth…</span>
+</div>
+
+<div id="paper"></div>
+<div id="audio" style="display:none"></div>
+
+<details open>
+  <summary>ABC source (editable)</summary>
+  <p style="font-size: 0.9em; color: #666;">
+    Tip: <code>(3ABC</code> = triplet, <code>z</code> = rest, lowercase = octave up, comma = octave down,
+    <code>[ace]</code> = chord. After editing, click <em>Re-render</em>.
+  </p>
+  <textarea id="abc"></textarea>
+  <div class="controls">
+    <button id="rerender">Re-render</button>
+    <button id="reset">Reset to original transcription</button>
+  </div>
+</details>
+
+<details>
+  <summary>What's likely wrong / known limitations</summary>
+  <ul>
+    <li>Vocal pitches are mostly guesses around A4 — recitative-style delivery, but real pitch contour needs a closer look.</li>
+    <li>Piano RH chords were estimated from staff position; voicings/inversions are likely off.</li>
+    <li>Piano LH bass is simplified to held whole notes per measure.</li>
+    <li>Triplet groupings on beats 2 and 3 of mm. 21, 22, 25, 26 follow the visible "3" brackets.</li>
+    <li>Dynamics (mf, poco cresc., dim) are notated but not interpreted by the synth.</li>
+    <li>"rubato" marking is decorative — playback is metronomic.</li>
+  </ul>
+</details>
+
+<script>
+const ORIGINAL_ABC = `X:1
+T:mm. 20-31 (Voice + Piano excerpt)
+C:Transcription POC
+M:4/4
+L:1/8
+Q:1/4=96
+K:F
+%%score [(V) (R L)]
+V:V clef=treble name="Addison"
+V:R clef=treble
+V:L clef=bass
+
+% --- m. 20 ---
+[V:V] z8 |
+[V:R] "mf"[F2A2c2][F2A2c2] [F2A2c2][F2A2c2] |
+[V:L] F,,8 |
+
+% --- m. 21 (rubato, triplets on bts 2-3) ---
+[V:V] z2 (3AAA (3AAA A2 |
+[V:R] [F2A2c2][F2A2c2] [F2A2c2][F2A2c2] |
+[V:L] F,,8 |
+
+% --- m. 22 ("hap-pened to me") ---
+[V:V] G2 A2 G6- |
+[V:R] [E2G2c2][E2G2c2] [F2A2c2][F2A2c2] |
+[V:L] C,,8 |
+
+% --- m. 23 ("You are.") ---
+[V:V] G6 z2 |
+[V:R] [F2A2c2][F2A2c2] [F2A2c2][F2A2c2] |
+[V:L] F,,8 |
+
+% --- m. 24 ---
+[V:V] z8 |
+[V:R] [F2A2c2][F2A2c2] [F2A2c2][F2A2c2] |
+[V:L] F,,8 |
+
+% --- m. 25 ("Okay then, One of the best things") ---
+[V:V] z2 (3AAA (3AAA A2 |
+[V:R] [F2A2c2][F2A2c2] [F2A2c2][F2A2c2] |
+[V:L] F,,8 |
+
+% --- m. 26 ("that's hap-pened to me") ---
+[V:V] G2 A2 G6- |
+[V:R] [E2G2c2][E2G2c2] [F2A2c2][F2A2c2] |
+[V:L] C,,8 |
+
+% --- m. 27 ("You are.") ---
+[V:V] G6 z2 |
+[V:R] [F2A2c2][F2A2c2] [F2A2c2][F2A2c2] |
+[V:L] F,,8 |
+
+% --- m. 28 ---
+[V:V] z8 |
+[V:R] [F2A2][F2A2] [F2A2][F2A2] |
+[V:L] F,,8 |
+
+% --- m. 29 ("They say we all find love") ---
+[V:V] A2 A2 G2 A2 |
+[V:R] "mf"[F2A2][F2A2] [E2G2][F2A2] |
+[V:L] F,,8 |
+
+% --- m. 30 ("I never bought") ---
+[V:V] z2 G2 A2 G2 |
+[V:R] [E2G2][E2G2] [F2A2][F2A2] |
+[V:L] C,,8 |
+
+% --- m. 31 ("it.") ---
+[V:V] F6 z2 |
+[V:R] [F2A2][F2A2] [F2A2][F2A2] |
+[V:L] F,,8 |]
+`;
+
+const abcEl = document.getElementById('abc');
+abcEl.value = ORIGINAL_ABC;
+
+let visualObj = null;
+let synthControl = null;
+const cursorControl = {
+  onStart: () => {},
+  onEvent: (ev) => {
+    document.querySelectorAll('.abcjs-note_selected').forEach(n =>
+      n.classList.remove('abcjs-note_selected'));
+    if (ev.elements) {
+      ev.elements.forEach(arr => arr.forEach(el => el.classList.add('abcjs-note_selected')));
+    }
+  },
+  onFinished: () => {
+    document.querySelectorAll('.abcjs-note_selected').forEach(n =>
+      n.classList.remove('abcjs-note_selected'));
+  },
+};
+
+function render() {
+  visualObj = ABCJS.renderAbc('paper', abcEl.value, {
+    responsive: 'resize',
+    add_classes: true,
+    staffwidth: 1100,
+  })[0];
+  setupSynth();
+}
+
+async function setupSynth() {
+  if (!ABCJS.synth.supportsAudio()) {
+    document.getElementById('status').textContent = 'Audio not supported in this browser.';
+    return;
+  }
+  if (synthControl) {
+    synthControl.disable(true);
+  }
+  synthControl = new ABCJS.synth.SynthController();
+  synthControl.load('#audio', cursorControl, {
+    displayLoop: false, displayRestart: false, displayPlay: false, displayProgress: false, displayWarp: false,
+  });
+  const tempo = parseInt(document.getElementById('tempo').value, 10);
+  await synthControl.setTune(visualObj, false, {
+    qpm: tempo,
+    program: 0, // Acoustic Grand
+    voicesOff: false,
+  });
+  document.getElementById('status').textContent = 'Ready.';
+}
+
+document.getElementById('play').onclick = () => synthControl && synthControl.play();
+document.getElementById('pause').onclick = () => synthControl && synthControl.pause();
+document.getElementById('stop').onclick = () => {
+  if (synthControl) {
+    synthControl.pause();
+    synthControl.restart();
+  }
+};
+document.getElementById('rerender').onclick = render;
+document.getElementById('reset').onclick = () => {
+  abcEl.value = ORIGINAL_ABC;
+  render();
+};
+document.getElementById('tempo').oninput = (e) => {
+  document.getElementById('tempoLabel').textContent = e.target.value + ' bpm';
+  if (visualObj && synthControl) {
+    synthControl.setTune(visualObj, false, { qpm: parseInt(e.target.value, 10), program: 0 });
+  }
+};
+
+render();
+</script>
+
+</body>
+</html>
