@@ -279,6 +279,20 @@
       <button id="add-step-btn">Add to sequence</button>
     </div>
 
+    <div style="margin-top: 14px;">
+      <label for="progression-input" style="margin-bottom: 6px;">Or type a progression</label>
+      <div class="row">
+        <input type="text" id="progression-input" placeholder="C - F - G7 - C" />
+        <button id="add-progression-btn" style="flex: 0 0 auto;">Add progression</button>
+        <button id="replace-progression-btn" style="flex: 0 0 auto;">Replace sequence</button>
+      </div>
+      <div class="help">
+        Separate chords with <code class="kbd">-</code> (or commas). Each chord is
+        voiced like the symbol builder and added to the Saved Symbol Chords library.
+      </div>
+      <div class="error" id="progression-error"></div>
+    </div>
+
     <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border);">
       <label for="seq-name" style="margin-bottom: 6px;">Save current sequence</label>
       <div class="row">
@@ -339,6 +353,10 @@ import * as Tonal from "https://esm.sh/@tonaljs/tonal@4.10.0";
     sequenceEmpty: document.getElementById("sequence-empty"),
     chordPickerSelect: document.getElementById("chord-picker-select"),
     addStepBtn: document.getElementById("add-step-btn"),
+    progressionInput: document.getElementById("progression-input"),
+    addProgressionBtn: document.getElementById("add-progression-btn"),
+    replaceProgressionBtn: document.getElementById("replace-progression-btn"),
+    progressionError: document.getElementById("progression-error"),
     seqName: document.getElementById("seq-name"),
     saveSeqBtn: document.getElementById("save-seq-btn"),
     sequenceList: document.getElementById("sequence-list"),
@@ -847,6 +865,48 @@ import * as Tonal from "https://esm.sh/@tonaljs/tonal@4.10.0";
     renderSequence();
   }
 
+  // Reuse an existing symbol chord with the same symbol, otherwise create one.
+  function getOrCreateSymbolChord(rawSymbol) {
+    const { display, notes } = resolveSymbol(rawSymbol);
+    const existing = state.symbolChords.find(c => c.symbol === display);
+    if (existing) return existing;
+    const chord = { id: newId(), name: display, userName: "", symbol: display, notes };
+    state.symbolChords.push(chord);
+    return chord;
+  }
+
+  function applyProgression(replace) {
+    els.progressionError.textContent = "";
+    // Split on commas/pipes and on whitespace-padded hyphens, so jazz minor
+    // shorthand like "C-7" stays intact while "C - F - G7" splits cleanly.
+    const tokens = els.progressionInput.value
+      .split(/[,|]/)
+      .flatMap(p => p.split(/\s+-+\s+|\s+-+\s*$|^\s*-+\s+/))
+      .map(s => s.trim()).filter(Boolean);
+    if (tokens.length === 0) {
+      els.progressionError.textContent =
+        'Enter a progression like "C - F - G7 - C".';
+      return;
+    }
+    const defaultBeats = Math.max(0.25, Number(els.defaultBeats.value) || 4);
+    const steps = [];
+    for (const tok of tokens) {
+      let chord;
+      try {
+        chord = getOrCreateSymbolChord(tok);
+      } catch (e) {
+        els.progressionError.textContent = `"${tok}": ${e.message}`;
+        return; // nothing applied if any chord is invalid
+      }
+      steps.push({ chordId: chord.id, beats: defaultBeats });
+    }
+    if (replace) state.currentSeq = steps;
+    else state.currentSeq.push(...steps);
+    els.progressionInput.value = "";
+    save();
+    renderAll();
+  }
+
   // ---------- Event wiring ----------
   els.previewBtn.addEventListener("click", async () => {
     els.chordError.textContent = "";
@@ -936,6 +996,12 @@ import * as Tonal from "https://esm.sh/@tonaljs/tonal@4.10.0";
     const id = els.chordPickerSelect.value;
     if (!id) return;
     addStep(id);
+  });
+
+  els.addProgressionBtn.addEventListener("click", () => applyProgression(false));
+  els.replaceProgressionBtn.addEventListener("click", () => applyProgression(true));
+  els.progressionInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") applyProgression(false);
   });
 
   els.playSeqBtn.addEventListener("click", () => playSteps(state.currentSeq));
