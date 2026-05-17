@@ -377,7 +377,21 @@ import * as Tonal from "https://esm.sh/@tonaljs/tonal@4.10.0";
       console.warn("Failed to load state:", e);
     }
   }
+  // Per-step edits create "local" chords owned by a single step. Drop any
+  // that are no longer referenced by the working sequence or a saved one.
+  function pruneLocalChords() {
+    const referenced = new Set();
+    for (const s of state.currentSeq) referenced.add(s.chordId);
+    for (const seq of state.sequences) {
+      for (const s of seq.steps) referenced.add(s.chordId);
+    }
+    state.symbolChords = state.symbolChords.filter(
+      c => !c.local || referenced.has(c.id)
+    );
+  }
+
   function save() {
+    pruneLocalChords();
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       chords: state.chords,
       symbolChords: state.symbolChords,
@@ -617,9 +631,10 @@ import * as Tonal from "https://esm.sh/@tonaljs/tonal@4.10.0";
 
   function renderSymbolChords() {
     els.symbolList.innerHTML = "";
-    els.symbolEmpty.style.display = state.symbolChords.length === 0 ? "block" : "none";
+    const visible = state.symbolChords.filter(c => !c.local);
+    els.symbolEmpty.style.display = visible.length === 0 ? "block" : "none";
 
-    for (const chord of state.symbolChords) {
+    for (const chord of visible) {
       const li = document.createElement("li");
       const name = document.createElement("span");
       name.className = "name";
@@ -677,7 +692,8 @@ import * as Tonal from "https://esm.sh/@tonaljs/tonal@4.10.0";
 
   function renderChordPicker() {
     els.chordPickerSelect.innerHTML = "";
-    const total = state.chords.length + state.symbolChords.length;
+    const symbolLib = state.symbolChords.filter(c => !c.local);
+    const total = state.chords.length + symbolLib.length;
     if (total === 0) {
       const opt = document.createElement("option");
       opt.textContent = "— save a chord first —";
@@ -702,7 +718,131 @@ import * as Tonal from "https://esm.sh/@tonaljs/tonal@4.10.0";
       els.chordPickerSelect.appendChild(group);
     };
     addGroup("Note chords", state.chords);
-    addGroup("Symbol chords", state.symbolChords);
+    addGroup("Symbol chords", symbolLib);
+  }
+
+  let editingStepIdx = -1;
+
+  // True if the chord id is used by more than one step (working or saved).
+  function chordIsShared(id) {
+    let n = state.currentSeq.filter(s => s.chordId === id).length;
+    for (const sq of state.sequences) {
+      n += sq.steps.filter(s => s.chordId === id).length;
+    }
+    return n > 1;
+  }
+
+  function buildStepEditor(step, i) {
+    const cur = getChordById(step.chordId);
+    const box = document.createElement("div");
+    box.className = "step-editor";
+    box.style.cssText =
+      "grid-column:1/-1;display:flex;flex-direction:column;gap:8px;" +
+      "padding:10px 12px;margin:4px 0 10px;border:1px solid var(--border);" +
+      "border-radius:8px;background:rgba(127,127,127,0.08);";
+
+    const mkRow = () => {
+      const r = document.createElement("div");
+      r.style.cssText = "display:flex;gap:8px;align-items:center;flex-wrap:wrap;";
+      return r;
+    };
+
+    const labelRow = mkRow();
+    const labelInput = document.createElement("input");
+    labelInput.type = "text";
+    labelInput.placeholder = "Chord label (e.g. Cmaj7/E)";
+    labelInput.value = cur ? cur.name : "";
+    labelInput.style.flex = "1 1 160px";
+    const labelTag = document.createElement("span");
+    labelTag.textContent = "Label";
+    labelTag.style.cssText = "font-size:12px;opacity:0.7;min-width:42px;";
+    labelRow.append(labelTag, labelInput);
+
+    const notesRow = mkRow();
+    const notesInput = document.createElement("input");
+    notesInput.type = "text";
+    notesInput.placeholder = "Notes e.g. C4, E4, G4";
+    notesInput.value = cur ? cur.notes.join(", ") : "";
+    notesInput.style.flex = "1 1 220px";
+    const notesTag = document.createElement("span");
+    notesTag.textContent = "Notes";
+    notesTag.style.cssText = "font-size:12px;opacity:0.7;min-width:42px;";
+    notesRow.append(notesTag, notesInput);
+
+    const optRow = mkRow();
+    const cbLabel = document.createElement("label");
+    cbLabel.style.cssText = "display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer;";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = !!(cur && cur.freeText);
+    cbLabel.append(cb, document.createTextNode("Free-text label (don't re-voice from the symbol)"));
+    optRow.append(cbLabel);
+
+    const err = document.createElement("div");
+    err.className = "error";
+
+    const btnRow = mkRow();
+    const saveBtn = document.createElement("button");
+    saveBtn.textContent = "Save";
+    saveBtn.className = "primary";
+    const cancelBtn = document.createElement("button");
+    cancelBtn.textContent = "Cancel";
+    btnRow.append(saveBtn, cancelBtn);
+
+    const syncNotesEnabled = () => {
+      notesInput.disabled = !cb.checked;
+      notesInput.style.opacity = cb.checked ? "1" : "0.55";
+      notesTag.textContent = cb.checked ? "Notes" : "Notes (auto)";
+    };
+    syncNotesEnabled();
+    cb.addEventListener("change", syncNotesEnabled);
+
+    cancelBtn.addEventListener("click", () => {
+      editingStepIdx = -1;
+      renderSequence();
+    });
+
+    saveBtn.addEventListener("click", () => {
+      err.textContent = "";
+      const freeText = cb.checked;
+      const label = labelInput.value.trim();
+      let name, symbol, notes;
+      try {
+        if (freeText) {
+          notes = parseNotes(notesInput.value);
+          name = label || "(chord)";
+          symbol = "";
+        } else {
+          const res = resolveSymbol(label);
+          notes = res.notes;
+          name = res.display;
+          symbol = res.display;
+        }
+      } catch (e) {
+        err.textContent = e.message;
+        return;
+      }
+
+      if (cur && cur.local && !chordIsShared(cur.id)) {
+        cur.name = name;
+        cur.symbol = symbol;
+        cur.notes = notes;
+        cur.freeText = freeText;
+      } else {
+        const fork = {
+          id: newId(), name, symbol, notes,
+          local: true, freeText,
+        };
+        state.symbolChords.push(fork);
+        step.chordId = fork.id;
+      }
+      editingStepIdx = -1;
+      save();
+      renderAll();
+    });
+
+    box.append(labelRow, notesRow, optRow, err, btnRow);
+    return box;
   }
 
   function renderSequence() {
@@ -743,6 +883,7 @@ import * as Tonal from "https://esm.sh/@tonaljs/tonal@4.10.0";
       upBtn.disabled = i === 0;
       upBtn.addEventListener("click", () => {
         [state.currentSeq[i - 1], state.currentSeq[i]] = [state.currentSeq[i], state.currentSeq[i - 1]];
+        editingStepIdx = -1;
         renderSequence();
       });
 
@@ -752,6 +893,7 @@ import * as Tonal from "https://esm.sh/@tonaljs/tonal@4.10.0";
       downBtn.disabled = i === state.currentSeq.length - 1;
       downBtn.addEventListener("click", () => {
         [state.currentSeq[i + 1], state.currentSeq[i]] = [state.currentSeq[i], state.currentSeq[i + 1]];
+        editingStepIdx = -1;
         renderSequence();
       });
 
@@ -766,16 +908,29 @@ import * as Tonal from "https://esm.sh/@tonaljs/tonal@4.10.0";
         playChordNow(chord.notes, step.beats * 60 / bpm);
       });
 
+      const editBtn = document.createElement("button");
+      editBtn.className = "icon";
+      editBtn.textContent = "✎";
+      editBtn.title = "Edit this step's chord";
+      editBtn.addEventListener("click", () => {
+        editingStepIdx = editingStepIdx === i ? -1 : i;
+        renderSequence();
+      });
+
       const removeBtn = document.createElement("button");
       removeBtn.className = "icon danger";
       removeBtn.textContent = "✕";
       removeBtn.addEventListener("click", () => {
         state.currentSeq.splice(i, 1);
+        editingStepIdx = -1;
         renderSequence();
       });
 
-      row.append(idx, name, beatsWrap, upBtn, downBtn, playOneBtn, removeBtn);
+      row.append(idx, name, beatsWrap, upBtn, downBtn, playOneBtn, editBtn, removeBtn);
       els.sequenceSteps.appendChild(row);
+      if (editingStepIdx === i) {
+        els.sequenceSteps.appendChild(buildStepEditor(step, i));
+      }
     });
   }
 
@@ -868,7 +1023,7 @@ import * as Tonal from "https://esm.sh/@tonaljs/tonal@4.10.0";
   // Reuse an existing symbol chord with the same symbol, otherwise create one.
   function getOrCreateSymbolChord(rawSymbol) {
     const { display, notes } = resolveSymbol(rawSymbol);
-    const existing = state.symbolChords.find(c => c.symbol === display);
+    const existing = state.symbolChords.find(c => !c.local && c.symbol === display);
     if (existing) return existing;
     const chord = { id: newId(), name: display, userName: "", symbol: display, notes };
     state.symbolChords.push(chord);
